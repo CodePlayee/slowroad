@@ -1,0 +1,62 @@
+{
+  "piece": "visual",
+  "round": 4,
+  "winner": "bar",
+  "score": 30,
+  "blind_pick_correct": {
+    "correct": 7,
+    "total": 7,
+    "rate": 1
+  },
+  "gap": "Replace the faceted, billboard-like vegetation and flat tiled ground with layered, natural materials and softer shading so the scene reads as a believable landscape rather than a low-poly prototype.",
+  "secondary_gaps": [
+    "Match the reference lighting cues: warm golden-hour saturation, readable night headlights/moonlight, and more convincing overcast contrast.",
+    "Add richer distant terrain/water silhouettes and aerial perspective; the wide frame currently lacks the reference's layered ridges and vista depth.",
+    "Refine cockpit composition and vehicle details (mirror/A-pillar, road markings, dashboard proportions) to match the reference driver-view framing."
+  ],
+  "evidence": [
+    {
+      "our_shot": "gauntlet/shots/visual_r4/chase_summer_noon.png",
+      "bar_shot": "refs/slowroads/official/sr_01.jpg",
+      "ab_image": "gauntlet/shots/visual_r4/ab_chase_summer_noon.png",
+      "note": "Blind pick B; revealed B=bar. Current frame has a clean road/car silhouette but faceted foliage, sparse ridge depth, and flat materials versus the reference's natural rolling landscape."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r4/chase_golden.png",
+      "bar_shot": "refs/slowroads/official/sr_04.jpg",
+      "ab_image": "gauntlet/shots/visual_r4/ab_chase_golden.png",
+      "note": "Blind pick A; revealed A=bar. Reference has coherent warm low sun and long shadows; ours is blown pale around the sun and loses golden-hour color/contrast."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r4/chase_night.png",
+      "bar_shot": "refs/slowroads/official/sr_20.jpg",
+      "ab_image": "gauntlet/shots/visual_r4/ab_chase_night.png",
+      "note": "Blind pick A; revealed A=bar. Ours supplies stars and a readable road, but lacks the reference's headlight beam, moonlit terrain readability, and convincing night atmosphere."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r4/cockpit_overcast.png",
+      "bar_shot": "refs/slowroads/official/sr_11.jpg",
+      "ab_image": "gauntlet/shots/visual_r4/ab_cockpit_overcast.png",
+      "note": "Blind pick A; revealed A=bar. Ours has a recognizable cockpit but heavy dashboard occlusion, no mirror/A-pillar match, and autumn vegetation that reads too dark and faceted under overcast light."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r4/season_winter.png",
+      "bar_shot": "refs/slowroads/official/sr_19.jpg",
+      "ab_image": "gauntlet/shots/visual_r4/ab_season_winter.png",
+      "note": "Blind pick A; revealed A=bar. Ours conveys snow-covered ground and leafless trees, but the blue daytime sky and repeated low-poly shrubs miss the reference's stark moonlit winter mood."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r4/vista_wide.png",
+      "bar_shot": "refs/slowroads/official/sr_03.jpg",
+      "ab_image": "gauntlet/shots/visual_r4/ab_vista_wide.png",
+      "note": "Blind pick B; revealed B=bar. Elevated road read is present, but ours is a close tree-lined cut with a bridge barrier; reference has expansive layered ridges, shoreline water, and atmospheric depth."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r4/cockpit_noon.png",
+      "bar_shot": "refs/slowroads/official/sr_11.jpg",
+      "ab_image": "gauntlet/shots/visual_r4/ab_cockpit_noon.png",
+      "note": "Blind pick A; revealed A=bar. Ours has a centered road and detailed wheel, but lacks the reference's mirror/A-pillar, road-center markings, and restrained cockpit proportions."
+    }
+  ],
+  "verdict_text": "The current build loses all seven blind comparisons to the official bar (7/7 blind identifications correct). It has functional road, car, season, and camera coverage, but the dominant low-poly foliage/material treatment and missing reference lighting/composition cues keep it far below the visual target."
+}

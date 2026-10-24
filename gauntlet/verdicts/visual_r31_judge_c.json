@@ -1,0 +1,75 @@
+{
+  "judge": "c",
+  "pairs": [
+    {
+      "id": "p01",
+      "winner": "A",
+      "material_gap": true,
+      "confidence": 0.92,
+      "reason": "A has softer, more varied ground cover and tree contact, while B shows conspicuously blocky repeated grass clumps and flatter terrain shading."
+    },
+    {
+      "id": "p02",
+      "winner": "B",
+      "material_gap": true,
+      "confidence": 0.65,
+      "reason": "B presents a cleaner, more continuous snow surface; A has a distracting clipped dark grass cluster in the foreground and rougher ground breakup."
+    },
+    {
+      "id": "p03",
+      "winner": "A",
+      "material_gap": true,
+      "confidence": 0.90,
+      "reason": "A keeps the hills and roadside vegetation visually continuous, whereas B has strong tiled, angular grass patches that read as lower-quality materials."
+    },
+    {
+      "id": "p04",
+      "winner": "A",
+      "material_gap": true,
+      "confidence": 0.95,
+      "reason": "A has a clearly defined winding road, layered distant hills, and dense terrain variation; B is flatter with simpler foliage and weaker depth cues."
+    },
+    {
+      "id": "p05",
+      "winner": "A",
+      "material_gap": true,
+      "confidence": 0.98,
+      "reason": "A has coherent sunset exposure, detailed road and grass textures, and convincing car contact, while B is washed out with flat vegetation and an over-bright sun."
+    },
+    {
+      "id": "p06",
+      "winner": "B",
+      "material_gap": true,
+      "confidence": 0.75,
+      "reason": "B gives the night scene stronger readable contrast through the illuminated curve, sign, and lake edge; A is more uniformly crushed into darkness."
+    },
+    {
+      "id": "p07",
+      "winner": "B",
+      "material_gap": true,
+      "confidence": 0.99,
+      "reason": "B has substantially clearer dashboard, mirror, guardrail, road, and hillside materials; A reads as a much rougher low-detail cockpit and landscape."
+    },
+    {
+      "id": "p08",
+      "winner": "A",
+      "material_gap": true,
+      "confidence": 0.97,
+      "reason": "A provides a strong continuous snowy mountain vista with atmospheric snowfall and road integration, while B is flatter and visibly patchy in its snow vegetation."
+    },
+    {
+      "id": "p09",
+      "winner": "B",
+      "material_gap": true,
+      "confidence": 0.99,
+      "reason": "B has a highly legible coastal road composition with layered mountains, water, and detailed vegetation; A is darker, flatter, and shows obvious terrain/foliage clipping."
+    },
+    {
+      "id": "p10",
+      "winner": "A",
+      "material_gap": true,
+      "confidence": 0.80,
+      "reason": "A's truck cabin, mirror, guardrail, and mountain-road materials are more developed, while B's cockpit and roadside scene are brighter but noticeably simpler and more blocky."
+    }
+  ]
+}

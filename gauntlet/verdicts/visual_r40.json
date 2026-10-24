@@ -1,0 +1,115 @@
+{
+  "schema": "gauntlet.visual-verdict.v1",
+  "piece": "visual",
+  "round": 40,
+  "agent": "independent_visual_r40",
+  "method": "Fresh seven-shot anonymous A/B review from an isolated headless browser on CDP port 9364. Quality was chosen before the A/B key was opened; identity was revealed afterward.",
+  "capture": {
+    "resolution": "1920x1080",
+    "browser": "round-43338-mtz5xqxr",
+    "browser_port": 9364,
+    "shots_dir": "gauntlet/rounds/visual_r40/shots",
+    "ab_dir": "gauntlet/rounds/visual_r40/ab",
+    "winter_reference": "refs/slowroads/official/sr_13.jpg",
+    "randomization": "independently randomized A/B per shot"
+  },
+  "quality_wins": {
+    "ours": 0,
+    "bar": 7,
+    "tie": 0
+  },
+  "score": 26,
+  "winner": "bar",
+  "blind_pick_correct": 7,
+  "identity_guesses": {
+    "correct": 7,
+    "total": 7
+  },
+  "evidence": [
+    {
+      "id": "chase_summer_noon",
+      "our_shot": "gauntlet/rounds/visual_r40/shots/chase_summer_noon.png",
+      "bar_shot": "refs/slowroads/official/sr_01.jpg",
+      "ab_image": "gauntlet/rounds/visual_r40/ab/chase_summer_noon.png",
+      "blind_pick": "B",
+      "reveal": "B=bar",
+      "dimensions": ["composition", "terrain continuity", "vegetation integration", "materials"],
+      "note": "The bar has a broad lake-backed rolling valley, continuous grass and species-scaled trees. Ours has a readable chase road and car, but repeated grass cards, sparse lollipop/candelabra silhouettes and tilted planar verge patches break the landform.",
+      "quality_winner": "B"
+    },
+    {
+      "id": "chase_golden",
+      "our_shot": "gauntlet/rounds/visual_r40/shots/chase_golden.png",
+      "bar_shot": "refs/slowroads/official/sr_04.jpg",
+      "ab_image": "gauntlet/rounds/visual_r40/ab/chase_golden.png",
+      "blind_pick": "A",
+      "reveal": "A=bar",
+      "dimensions": ["lighting", "exposure", "vegetation integration", "road material"],
+      "note": "The bar's amber fields, dark honest land exposure and long shadows form a finished dusk composition. Ours has the right sun direction but pale gray-green shoulders, flat tuft scatter and weak contact/shadow structure.",
+      "quality_winner": "A"
+    },
+    {
+      "id": "chase_night",
+      "our_shot": "gauntlet/rounds/visual_r40/shots/chase_night.png",
+      "bar_shot": "refs/slowroads/official/sr_20.jpg",
+      "ab_image": "gauntlet/rounds/visual_r40/ab/chase_night.png",
+      "blind_pick": "A",
+      "reveal": "A=ours",
+      "dimensions": ["night exposure", "depth/atmosphere", "terrain continuity", "headlight integration"],
+      "note": "The bar preserves a readable blue night ramp, shoreline/mountain silhouette and a strong headlight pool. Ours has stars and a legible road but most terrain collapses into near-black low-poly silhouettes and the vegetation remains card-like.",
+      "quality_winner": "B"
+    },
+    {
+      "id": "cockpit_overcast",
+      "our_shot": "gauntlet/rounds/visual_r40/shots/cockpit_overcast.png",
+      "bar_shot": "refs/slowroads/official/sr_11.jpg",
+      "ab_image": "gauntlet/rounds/visual_r40/ab/cockpit_overcast.png",
+      "blind_pick": "B",
+      "reveal": "B=bar",
+      "dimensions": ["cockpit composition", "vegetation species", "road continuity", "materials"],
+      "note": "The bar has a restrained driver aperture, mirror, road cut and naturally varied hillside. Ours communicates cockpit intent, but the large dark dash occludes the lower frame and autumn trees/ground read as repeated faceted cards with abrupt slope planes.",
+      "quality_winner": "B"
+    },
+    {
+      "id": "season_winter",
+      "our_shot": "gauntlet/rounds/visual_r40/shots/season_winter.png",
+      "bar_shot": "refs/slowroads/official/sr_13.jpg",
+      "ab_image": "gauntlet/rounds/visual_r40/ab/season_winter.png",
+      "blind_pick": "A",
+      "reveal": "A=ours",
+      "dimensions": ["season coherence", "terrain continuity", "vegetation integration", "composition"],
+      "note": "The bar is an integrated snow world with sculpted snowy relief, falling snow and a continuous road/guardrail. Ours applies a winter tint and snow cover but leaves tilted polygon shoulder planes, sparse dark trunks and tuft/card artifacts exposed.",
+      "quality_winner": "B"
+    },
+    {
+      "id": "vista_wide",
+      "our_shot": "gauntlet/rounds/visual_r40/shots/vista_wide.png",
+      "bar_shot": "refs/slowroads/official/sr_03.jpg",
+      "ab_image": "gauntlet/rounds/visual_r40/ab/vista_wide.png",
+      "blind_pick": "A",
+      "reveal": "A=ours",
+      "dimensions": ["terrain depth", "composition", "vegetation scale", "atmosphere"],
+      "note": "The bar's cut/fill coastal road, water and multiple ridge layers create clear aerial perspective. Ours has an elevated road but large foreground trees, dark planar ground and missing water/ridge separation flatten the vista.",
+      "quality_winner": "B"
+    },
+    {
+      "id": "cockpit_noon",
+      "our_shot": "gauntlet/rounds/visual_r40/shots/cockpit_noon.png",
+      "bar_shot": "refs/slowroads/official/sr_11.jpg",
+      "ab_image": "gauntlet/rounds/visual_r40/ab/cockpit_noon.png",
+      "blind_pick": "A",
+      "reveal": "A=bar",
+      "dimensions": ["cockpit framing", "road material", "vegetation integration", "ground continuity"],
+      "note": "The bar offers a clean windshield/mirror, natural road cut and restrained interior. Ours has the wheel and centered road but oversized noisy dashboard, repeated species silhouettes and visibly planar verge tilts dominate the frame.",
+      "quality_winner": "B"
+    }
+  ],
+  "gap": "Replace the repeated low-poly vegetation cards and species-incoherent silhouettes with grounded, species-scaled clusters whose bases follow a continuous terrain surface; eliminate the exposed tilted/triangulated verge planes that currently make every near ground read as a patchwork.",
+  "secondary_gaps": [
+    "Terrain lacks the reference's broad continuous landforms, water context and multi-distance ridge layering, especially in vista_wide.",
+    "Golden and night lighting need stronger material response, honest exposure and an integrated shadow/headlight field.",
+    "Cockpit framing and winter coverage remain recognizable but the dashboard/roadside geometry is too dominant and unfinished."
+  ],
+  "verdict_text": "Independent round-40 seven-shot review: the official bar wins all seven quality comparisons. The build is recognizable and technically resident, but the dominant visible deficit remains vegetation species/scale plus tilted planar ground patches that destroy contact and continuous terrain read. Secondary differences are missing vista depth/water context, weak golden/night material lighting, and cockpit occlusion.",
+  "status": "judging"
+}

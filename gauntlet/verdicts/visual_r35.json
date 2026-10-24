@@ -1,0 +1,121 @@
+{
+  "schema": "gauntlet.visual-critic.v1",
+  "round": "visual-r35",
+  "agent": "independent-visual-critic",
+  "capture": {
+    "resolution": "1920x1080",
+    "browser": "fresh headless",
+    "cdp_port": 9362,
+    "out_dir": "gauntlet/rounds/visual-r35",
+    "status": "passed",
+    "page_errors": [],
+    "cleanup_remaining": 0,
+    "shots": [
+      "chase_summer_noon",
+      "chase_golden",
+      "chase_night",
+      "cockpit_overcast",
+      "season_winter",
+      "vista_wide",
+      "cockpit_noon"
+    ]
+  },
+  "blinding": {
+    "randomization_seed": "r35a17",
+    "pair_order": "independently randomized A/B per shot",
+    "quality_before_identity": true,
+    "source_mapping_record": "/tmp/r35-anon-manifest.json"
+  },
+  "rubric": [
+    "composition",
+    "road_and_terrain_continuity",
+    "vegetation_integration",
+    "depth_and_atmosphere",
+    "lighting_and_exposure",
+    "materials",
+    "contact_grounding",
+    "image_cleanliness"
+  ],
+  "shots": [
+    {
+      "id": "chase_summer_noon",
+      "piece": "road",
+      "reference": "refs/slowroads/official/sr_01.jpg",
+      "quality_winner": "B",
+      "identity_guess": "B",
+      "scores": {"A": 2, "B": 5},
+      "comparability": {"ui_hud": "comparable", "other": "comparable"},
+      "reasons": "B has the required stacked depth layers, lake, contour-pinned ribbon and coherent fence/embankment. A is a shallow single valley with coarse billboard-like grass, utility poles and weaker road/terrain integration."
+    },
+    {
+      "id": "chase_golden",
+      "piece": "daycycle",
+      "reference": "refs/slowroads/official/sr_04.jpg",
+      "quality_winner": "B",
+      "identity_guess": "B",
+      "scores": {"A": 2, "B": 5},
+      "comparability": {"ui_hud": "N/A: reference HUD visible, capture HUD hidden", "other": "comparable"},
+      "reasons": "B preserves dusk exposure with dark land detail, warm horizon, long shadows, mature hero tree and legible double-white marking. A is severely washed out, loses land contrast and has sparse low-detail vegetation."
+    },
+    {
+      "id": "chase_night",
+      "piece": "daycycle",
+      "reference": "refs/slowroads/official/sr_20.jpg",
+      "quality_winner": "B",
+      "identity_guess": "B",
+      "scores": {"A": 1, "B": 5},
+      "comparability": {"ui_hud": "comparable", "other": "comparable"},
+      "reasons": "B has a readable headlight cone, reflective markings, lit traffic, moonlit mountain and controlled blue-black exposure. A is nearly unlit, has no usable headlight/traffic story, weak road markings and crushed terrain."
+    },
+    {
+      "id": "cockpit_overcast",
+      "piece": "atmosphere",
+      "reference": "refs/slowroads/official/sr_11.jpg",
+      "quality_winner": "B",
+      "identity_guess": "B",
+      "scores": {"A": 2, "B": 5},
+      "comparability": {"weather_season": "N/A: query is autumn overcast while reference is a different biome/time", "cockpit": "comparable"},
+      "reasons": "B has convincing cockpit proportions, A-pillar, mirror reflection, guardrail, road marking and material detail. A has a simplified faceted dash, no mirror/guardrail, weak centerline and generic flat roadside."
+    },
+    {
+      "id": "season_winter",
+      "piece": "season",
+      "reference": "refs/slowroads/official/sr_13.jpg",
+      "quality_winner": "A",
+      "identity_guess": "A",
+      "scores": {"A": 5, "B": 2},
+      "comparability": {"weather": "N/A: reference is active snowfall; query is clear", "other": "comparable winter framing"},
+      "reasons": "A establishes terrestrial winter with snow-covered rolling hills, falling snow, layered conifers, dark wet road and guardrail continuity. B only whitens the near verge; clear blue sky, bare summer-like trees, sparse flat shrubs and no convincing snow/weather layer remain."
+    },
+    {
+      "id": "vista_wide",
+      "piece": "terrain",
+      "reference": "refs/slowroads/official/sr_03.jpg",
+      "quality_winner": "B",
+      "identity_guess": "B",
+      "scores": {"A": 2, "B": 5},
+      "comparability": {"biome_water": "N/A: reference is coastal water/cut slope; capture is inland green valley", "other": "wide elevated framing comparable"},
+      "reasons": "B delivers cut/fill terrain, coastal water, aerial haze and layered mountain silhouettes. A is a flat green texture field with repetitive grass cards, a bridge intruding into frame and no water or convincing far-depth separation."
+    },
+    {
+      "id": "cockpit_noon",
+      "piece": "journey",
+      "reference": "refs/slowroads/official/sr_11.jpg",
+      "quality_winner": "A",
+      "identity_guess": "A",
+      "scores": {"A": 5, "B": 2},
+      "comparability": {"weather_biome": "N/A: reference is overcast coastal; capture is clear inland summer", "cockpit": "comparable"},
+      "reasons": "A has the believable windshield/A-pillar, mirror reflection, double-yellow road, guardrail and textured slope. B's cockpit is a low-detail faceted shell with no mirror or guardrail and a thin, weak road composition."
+    }
+  ],
+  "largest_gap": {
+    "shot": "season_winter",
+    "finding": "The build does not reproduce the frozen terrestrial winter bar: no snow-covered depth layers or active snowfall, with a clear blue sky and summer-like vegetation instead.",
+    "cross_cutting": "Across the other six shots the largest recurring deficit is scene depth/material specificity: low-detail repeated vegetation, weak terrain layering and missing lighting cues (especially night headlight cone and cockpit mirrors/road hardware)."
+  },
+  "overall": {
+    "quality_wins": {"ours": 0, "reference": 7, "tie": 0},
+    "material_gap_present": true,
+    "visual_gate": "not passed"
+  }
+}

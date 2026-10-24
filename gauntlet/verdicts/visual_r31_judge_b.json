@@ -1,0 +1,75 @@
+{
+  "judge": "b",
+  "pairs": [
+    {
+      "id": "p01",
+      "winner": "A",
+      "material_gap": true,
+      "confidence": 0.98,
+      "reason": "A 的植被层次和贴地草丛更自然，B 的草地出现明显重复的平面贴片和硬切边。"
+    },
+    {
+      "id": "p02",
+      "winner": "A",
+      "material_gap": true,
+      "confidence": 0.9,
+      "reason": "A 的雪地起伏、灌木和树木细节更丰富，B 的雪面过于空白且草丛重复。"
+    },
+    {
+      "id": "p03",
+      "winner": "A",
+      "material_gap": true,
+      "confidence": 0.8,
+      "reason": "两侧道路和内饰接近，但 A 的坡面植被更连贯，B 有更多显眼的块状贴片。"
+    },
+    {
+      "id": "p04",
+      "winner": "A",
+      "material_gap": true,
+      "confidence": 1.0,
+      "reason": "A 展现出更完整的山谷远景、森林层次和细腻草地，B 的近景植被与地形明显更简化。"
+    },
+    {
+      "id": "p05",
+      "winner": "A",
+      "material_gap": true,
+      "confidence": 0.99,
+      "reason": "A 的夕照、车辆材质和田野道路具有清晰的层次与对比，B 曝光发白且植被材质粗糙。"
+    },
+    {
+      "id": "p06",
+      "winner": "B",
+      "material_gap": true,
+      "confidence": 0.75,
+      "reason": "B 以车灯、弯道标志、湖面和山体形成更有层次的夜景光照，A 的画面大面积陷入黑暗。"
+    },
+    {
+      "id": "p07",
+      "winner": "B",
+      "material_gap": true,
+      "confidence": 0.98,
+      "reason": "B 的道路、护栏、山坡植被和驾驶舱细节更真实连贯，A 的秋季场景材质较平。"
+    },
+    {
+      "id": "p08",
+      "winner": "A",
+      "material_gap": true,
+      "confidence": 0.99,
+      "reason": "A 的雪山弯道、雾气、降雪和远景层次完整，B 更像重复的低多边形雪地贴片。"
+    },
+    {
+      "id": "p09",
+      "winner": "B",
+      "material_gap": true,
+      "confidence": 0.99,
+      "reason": "B 的湖岸山体、道路曲线和植被尺度更自然，A 的俯视场景偏暗且地形贴片感明显。"
+    },
+    {
+      "id": "p10",
+      "winner": "A",
+      "material_gap": true,
+      "confidence": 0.88,
+      "reason": "A 的海岸道路、护栏和山坡材质更细致真实，B 的草坡重复块状植被更显粗糙。"
+    }
+  ]
+}

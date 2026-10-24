@@ -1,0 +1,62 @@
+{
+  "piece": "visual",
+  "round": 5,
+  "winner": "bar",
+  "score": 32,
+  "blind_pick_correct": {
+    "correct": 7,
+    "total": 7,
+    "rate": 1
+  },
+  "gap": "Replace the remaining faceted/billboard vegetation and flat shoulder materials with depth-layered foliage, continuous terrain shading, and grounded contact shadows; this is the dominant mismatch in every daylight view.",
+  "secondary_gaps": [
+    "Rebuild golden-hour, night, and overcast lighting so sun warmth, headlight beams, moonlit terrain, and low-contrast cloud light read with the reference cues.",
+    "Add stronger aerial perspective and multi-layer ridges/water in wide shots; the elevated frame currently reads as a close tree cut rather than an expansive landscape.",
+    "Refine cockpit framing and vehicle interior proportions, including mirror/A-pillar visibility, lane markings, and dashboard scale."
+  ],
+  "evidence": [
+    {
+      "our_shot": "gauntlet/shots/visual_r5/chase_summer_noon.png",
+      "bar_shot": "refs/slowroads/official/sr_01.jpg",
+      "ab_image": "gauntlet/shots/visual_r5/ab_chase_summer_noon.png",
+      "note": "Blind pick A; revealed A=ours. Road and car are legible, but billboard-like tree crowns, repeated grass clumps, and a broad flat tan shoulder make the landscape read as low-poly rather than the reference's continuous natural verge."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r5/chase_golden.png",
+      "bar_shot": "refs/slowroads/official/sr_04.jpg",
+      "ab_image": "gauntlet/shots/visual_r5/ab_chase_golden.png",
+      "note": "Blind pick B; revealed B=ours. The current view has a bright low sun but washes the scene into pale gray/green and loses the reference's saturated warm fields, long shadow structure, and grounded foliage."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r5/chase_night.png",
+      "bar_shot": "refs/slowroads/official/sr_20.jpg",
+      "ab_image": "gauntlet/shots/visual_r5/ab_chase_night.png",
+      "note": "Blind pick B; revealed B=ours. Stars and road remain readable, yet the scene lacks a convincing headlight cone and moonlit terrain separation; vegetation collapses into dark cutout masses."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r5/cockpit_overcast.png",
+      "bar_shot": "refs/slowroads/official/sr_11.jpg",
+      "ab_image": "gauntlet/shots/visual_r5/ab_cockpit_overcast.png",
+      "note": "Blind pick A; revealed A=ours. Cockpit silhouette is clear, but the oversized dark dash dominates and the autumn roadside uses chunky repeated cards instead of the reference's soft, low-contrast overcast depth."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r5/season_winter.png",
+      "bar_shot": "refs/slowroads/official/sr_19.jpg",
+      "ab_image": "gauntlet/shots/visual_r5/ab_season_winter.png",
+      "note": "Blind pick A; revealed A=ours. Leafless trees and pale ground communicate winter, but the daytime blue sky, exposed tan shoulder, and repeated low-poly shrubs miss the reference's coherent snow coverage and stark lighting."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r5/vista_wide.png",
+      "bar_shot": "refs/slowroads/official/sr_03.jpg",
+      "ab_image": "gauntlet/shots/visual_r5/ab_vista_wide.png",
+      "note": "Blind pick A; revealed A=ours. The road threading and elevated camera work, but nearby trees and a bridge barrier fill the frame; there are not enough separated ridge layers, shoreline/water cues, or atmospheric falloff for the reference's wide vista."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r5/cockpit_noon.png",
+      "bar_shot": "refs/slowroads/official/sr_11.jpg",
+      "ab_image": "gauntlet/shots/visual_r5/ab_cockpit_noon.png",
+      "note": "Blind pick B; revealed B=ours. The centered road and wheel are functional, but the dark dashboard occupies too much of the lower frame and the mirror/A-pillar, lane markings, and restrained interior proportions do not match the reference driver view."
+    }
+  ],
+  "verdict_text": "The current build loses all seven blind comparisons to the official bar (7/7 blind identifications correct). The vegetation pass reduces some card bulk, but the global low-poly material language, shallow terrain depth, and lighting/composition mismatches remain immediately distinguishable from the photographic target."
+}

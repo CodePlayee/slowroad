@@ -1,0 +1,26 @@
+{
+  "piece": "terrain_road",
+  "round": 1,
+  "builder": "terrain_road_builder_r1",
+  "winner": "ours",
+  "score": 68,
+  "blind_pick_correct": true,
+  "changes": [
+    "Terrain fragment now mixes world-space macro/meso/micro noise with moisture, slope and altitude for continuous meadow, undergrowth soil and rock variation across clipmap levels.",
+    "Road asphalt noise uses rotated low-frequency world coordinates to remove repeated transverse striping; shoulder/verge widths reduced for a tighter ground transition.",
+    "Road segments procedurally add sparse timber guide rails with posts and twin beams, skipping bridge decks."
+  ],
+  "evidence": [
+    {"our_shot":"/tmp/slowroad-r1-a.png","bar_shot":"refs/slowroads/official/sr_01.jpg","note":"Chase frame shows continuous slope-following road, mixed grass/soil ground and readable timber edge detail; still behind bar in authored vegetation density and vehicle realism."},
+    {"our_shot":"/tmp/slowroad-r1-b.png","bar_shot":"refs/slowroads/official/sr_04.jpg","note":"Autumn frame confirms multiscale terrain color continuity and reduced asphalt striping; fence remains darker and more regular than the bar's rustic wall."},
+    {"our_shot":"/tmp/slowroad-r1-c.png","bar_shot":"refs/slowroads/official/sr_03.jpg","note":"Spring golden frame confirms road shoulder blend and natural rolling grade at a distant vista; atmospheric exposure and low-poly assets remain the largest gap."},
+    {"our_shot":"/tmp/slowroad-r1-final.png","bar_shot":"refs/slowroads/official/sr_01.jpg","note":"Final summer frame: one-sided rails no longer dominate composition, asphalt reads as matte granular rather than repeated bands, terrain has visible meadow/soil patches."}
+  ],
+  "remaining_gaps": [
+    "Official references have authored high-detail vegetation and vehicle geometry beyond this scoped terrain/road pass.",
+    "Fence rails are still somewhat uniform along long straights; varied post spacing and occasional stone walls would improve regional specificity.",
+    "Road verge remains a broad graded strip in some lighting conditions due to the shared cross-section earthworks model."
+  ],
+  "build": {"command":"npm run build","status":"passed"},
+  "verification": {"headless_shots":3,"residency":"all requested terrain/road/vegetation chunks resident","fps_range":[41.4,60.3]}
+}

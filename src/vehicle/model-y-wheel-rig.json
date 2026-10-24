@@ -1,0 +1,358 @@
+{
+  "version": 1,
+  "assetSha256": "b3301a2b4b4935c9323d1a430461cfca85096b674b7d8535c5dd6e3693492c90",
+  "sourceSha256": "456232441dd8af244be95fd0ade89cbd10cf760e9a19c74a279232634bb8b754",
+  "wheels": [
+    {
+      "name": "Wheel_LF",
+      "center": [
+        0.81041044,
+        0.345844328,
+        1.48695338
+      ],
+      "front": true,
+      "radius": 0.35614943504333496
+    },
+    {
+      "name": "Wheel_RF",
+      "center": [
+        -0.8191902,
+        0.345844328,
+        1.48695707
+      ],
+      "front": true,
+      "radius": 0.35614943504333496
+    },
+    {
+      "name": "Wheel_LB",
+      "center": [
+        0.81041044,
+        0.34584403,
+        -1.40310967
+      ],
+      "front": false,
+      "radius": 0.356149435043335
+    },
+    {
+      "name": "Wheel_RB",
+      "center": [
+        -0.8191902,
+        0.34584412,
+        -1.40310264
+      ],
+      "front": false,
+      "radius": 0.35614943504333496
+    }
+  ],
+  "meshes": [
+    {
+      "name": "SideBumper_ChromePlastic",
+      "material": "M_Ext_ChromePlastic",
+      "indexCount": 105120,
+      "indexHash": 2932355476,
+      "maxWheelSurfaceError": 0.002496826720014641,
+      "parts": [
+        {
+          "wheel": null,
+          "rolling": false,
+          "triangles": 19134,
+          "ranges": [
+            [
+              0,
+              436
+            ],
+            [
+              16309,
+              18696
+            ],
+            [
+              35038,
+              2
+            ]
+          ]
+        },
+        {
+          "wheel": "Wheel_LF",
+          "rolling": false,
+          "triangles": 1142,
+          "ranges": [
+            [
+              436,
+              529
+            ],
+            [
+              966,
+              148
+            ],
+            [
+              1115,
+              22
+            ],
+            [
+              1139,
+              1
+            ],
+            [
+              1141,
+              78
+            ],
+            [
+              1220,
+              359
+            ],
+            [
+              35033,
+              5
+            ]
+          ]
+        },
+        {
+          "wheel": "Wheel_LF",
+          "rolling": true,
+          "triangles": 3076,
+          "ranges": [
+            [
+              965,
+              1
+            ],
+            [
+              1114,
+              1
+            ],
+            [
+              1137,
+              2
+            ],
+            [
+              1140,
+              1
+            ],
+            [
+              1219,
+              1
+            ],
+            [
+              1579,
+              3066
+            ],
+            [
+              35029,
+              4
+            ]
+          ]
+        },
+        {
+          "wheel": "Wheel_LB",
+          "rolling": false,
+          "triangles": 988,
+          "ranges": [
+            [
+              4645,
+              984
+            ],
+            [
+              35025,
+              4
+            ]
+          ]
+        },
+        {
+          "wheel": "Wheel_LB",
+          "rolling": true,
+          "triangles": 2840,
+          "ranges": [
+            [
+              5629,
+              2836
+            ],
+            [
+              35021,
+              4
+            ]
+          ]
+        },
+        {
+          "wheel": "Wheel_RB",
+          "rolling": false,
+          "triangles": 978,
+          "ranges": [
+            [
+              8465,
+              974
+            ],
+            [
+              35017,
+              4
+            ]
+          ]
+        },
+        {
+          "wheel": "Wheel_RB",
+          "rolling": true,
+          "triangles": 2764,
+          "ranges": [
+            [
+              9439,
+              2760
+            ],
+            [
+              35013,
+              4
+            ]
+          ]
+        },
+        {
+          "wheel": "Wheel_RF",
+          "rolling": false,
+          "triangles": 1093,
+          "ranges": [
+            [
+              12199,
+              491
+            ],
+            [
+              12691,
+              170
+            ],
+            [
+              12862,
+              11
+            ],
+            [
+              12874,
+              58
+            ],
+            [
+              12933,
+              9
+            ],
+            [
+              12943,
+              348
+            ],
+            [
+              15432,
+              1
+            ],
+            [
+              15499,
+              1
+            ],
+            [
+              35009,
+              4
+            ]
+          ]
+        },
+        {
+          "wheel": "Wheel_RF",
+          "rolling": true,
+          "triangles": 3025,
+          "ranges": [
+            [
+              12690,
+              1
+            ],
+            [
+              12861,
+              1
+            ],
+            [
+              12873,
+              1
+            ],
+            [
+              12932,
+              1
+            ],
+            [
+              12942,
+              1
+            ],
+            [
+              13291,
+              2141
+            ],
+            [
+              15433,
+              66
+            ],
+            [
+              15500,
+              809
+            ],
+            [
+              35005,
+              4
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Wheel_RF_Disc",
+      "material": "M_Ext_Wheel",
+      "indexCount": 8580,
+      "indexHash": 4174131674,
+      "maxWheelSurfaceError": 0.002908339203501096,
+      "parts": [
+        {
+          "wheel": "Wheel_LF",
+          "rolling": true,
+          "triangles": 722,
+          "ranges": [
+            [
+              0,
+              720
+            ],
+            [
+              2858,
+              2
+            ]
+          ]
+        },
+        {
+          "wheel": "Wheel_LB",
+          "rolling": true,
+          "triangles": 718,
+          "ranges": [
+            [
+              720,
+              716
+            ],
+            [
+              2856,
+              2
+            ]
+          ]
+        },
+        {
+          "wheel": "Wheel_RB",
+          "rolling": true,
+          "triangles": 718,
+          "ranges": [
+            [
+              1436,
+              716
+            ],
+            [
+              2854,
+              2
+            ]
+          ]
+        },
+        {
+          "wheel": "Wheel_RF",
+          "rolling": true,
+          "triangles": 702,
+          "ranges": [
+            [
+              2152,
+              702
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

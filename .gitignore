@@ -1,0 +1,22 @@
+# Dependencies and build output
+node_modules/
+dist/
+.vite/
+
+# Local machine and editor files
+.DS_Store
+.playwright-mcp/
+__pycache__/
+*.py[cod]
+
+# Generated captures, benchmarks, and gauntlet rounds
+shots/
+gauntlet/rounds/
+gauntlet/shots/
+gauntlet/checks/
+gauntlet/round.json
+gauntlet/progress.json
+
+# Local probe output
+*.log
+

@@ -1,0 +1,78 @@
+{
+  "schema": "gauntlet.visual-verdict.v1",
+  "round": 36,
+  "agent": "independent_visual_r36",
+  "captured": "gauntlet/rounds/visual-r36",
+  "resolution": "1920x1080",
+  "method": "Fresh seven-shot anonymous A/B review. Quality winner was chosen before reading the side map; side identity was recorded afterward.",
+  "winner": "bar",
+  "quality_wins": {"bar": 7, "ours": 0},
+  "identity_guesses": {"correct": 7, "total": 7},
+  "protocol_gate": "not_passed",
+  "shots": [
+    {
+      "id": "chase_summer_noon",
+      "quality_winner": "bar",
+      "identity": {"A": "bar", "B": "ours"},
+      "score_ours": 47,
+      "score_bar": 90,
+      "gap": "The road composition is recognizable, but ours has card-like vegetation, broad hard-edged shoulder planes, and much shallower near/mid/far terrain depth than the continuous reference landscape."
+    },
+    {
+      "id": "chase_golden",
+      "quality_winner": "bar",
+      "identity": {"A": "ours", "B": "bar"},
+      "score_ours": 39,
+      "score_bar": 92,
+      "gap": "Ours is washed out with a weak golden-hour read and little long-shadow land detail; the bar has warm directional light, rich ground color, and readable distant ridges."
+    },
+    {
+      "id": "chase_night",
+      "quality_winner": "bar",
+      "identity": {"A": "ours", "B": "bar"},
+      "score_ours": 38,
+      "score_bar": 88,
+      "gap": "Ours is too dark and lacks a convincing headlight cone, reflective road response, and readable night landform; the bar keeps the road and bend legible under headlights."
+    },
+    {
+      "id": "cockpit_overcast",
+      "quality_winner": "bar",
+      "identity": {"A": "ours", "B": "bar"},
+      "score_ours": 43,
+      "score_bar": 86,
+      "na_dimensions": ["exact weather/season semantics differ from the daytime cockpit bar"],
+      "gap": "Ours has a recognizable cockpit but simplified low-detail dash and windshield framing; it lacks the bar's mirror, guardrail, road markings, and natural hillside materials."
+    },
+    {
+      "id": "season_winter",
+      "quality_winner": "bar",
+      "identity": {"A": "ours", "B": "bar"},
+      "score_ours": 53,
+      "score_bar": 93,
+      "semantic_change": "improved",
+      "gap": "Winter semantics are materially improved: ours is now clearly a terrestrial snowy road with leafless trees and snow-covered verges. It still lacks the bar's layered snowy hills, grey atmospheric falloff, active snowfall, and natural snow-road contact; a residual blue horizon makes it read as a clear overlay rather than a snow-weather world."
+    },
+    {
+      "id": "vista_wide",
+      "quality_winner": "bar",
+      "identity": {"A": "bar", "B": "ours"},
+      "score_ours": 42,
+      "score_bar": 91,
+      "gap": "Ours provides an elevated winding road but remains a low-poly green valley with flat depth cues and no convincing water/shoreline; the bar has natural cut slopes, water, and layered atmospheric relief."
+    },
+    {
+      "id": "cockpit_noon",
+      "quality_winner": "bar",
+      "identity": {"A": "ours", "B": "bar"},
+      "score_ours": 46,
+      "score_bar": 86,
+      "gap": "The driver framing is present, but ours has a simplified interior and generic road/vegetation; the bar has a detailed mirror, guardrail, lane treatment, and more grounded terrain materials."
+    }
+  ],
+  "max_gap": "Continuous grounded landscape integration remains the largest mismatch: hard-edged shoulder/snow planes and stamped low-poly foliage prevent the bar's natural near/mid/far material depth. Winter semantics improved clearly, but winter atmosphere and snow material integration remain visibly behind.",
+  "notes": [
+    "All seven captures completed at 1920x1080 with no page errors and full residency.",
+    "The canonical terrestrial winter bar used refs/slowroads/official/sr_13.jpg.",
+    "This is one fresh judge pass; the protocol requires three independent judges and a consecutive repeat before any family can pass."
+  ]
+}

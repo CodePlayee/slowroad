@@ -1,0 +1,63 @@
+{
+  "piece": "visual",
+  "round": 18,
+  "winner": "bar",
+  "score": 47,
+  "blind_pick_correct": {
+    "correct": 7,
+    "total": 7,
+    "rate": 1
+  },
+  "gap": "Replace the faceted card-like vegetation and broad polygon verge patches with continuous, depth-layered natural terrain materials and varied grounded silhouettes so every camera reads as a connected landscape rather than a tiled low-poly field.",
+  "secondary_gaps": [
+    "Golden-hour and night exposure/color remain materially flatter and less atmospheric than the reference, with weak warm light and limited headlight reach.",
+    "Cockpit framing and interior geometry are still a stylized dashboard block with no convincing mirror/A-pillar relationship to the road.",
+    "Winter and wide-vista shots lack the bar's coherent large-scale landform/water context and realistic snow or aerial-perspective layering.",
+    "Vehicle and road markings are recognizable but remain simplified and less physically grounded than the photographic bar composition."
+  ],
+  "evidence": [
+    {
+      "our_shot": "gauntlet/shots/visual_r18/chase_summer_noon.png",
+      "bar_shot": "refs/slowroads/official/sr_01.jpg",
+      "ab_image": "gauntlet/shots/visual_r18/ab_chase_summer_noon.png",
+      "note": "B (bar) has continuous rolling meadow and dense natural vegetation; A (ours) has hard-edged pale verge polygons and repeated faceted clumps despite a readable road/car layout."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r18/chase_golden.png",
+      "bar_shot": "refs/slowroads/official/sr_04.jpg",
+      "ab_image": "gauntlet/shots/visual_r18/ab_chase_golden.png",
+      "note": "B (bar) has a rich warm low-sun landscape and textured road; A (ours) is washed out around the sun with cool flat verge material and stylized foliage."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r18/chase_night.png",
+      "bar_shot": "refs/slowroads/official/sr_20.jpg",
+      "ab_image": "gauntlet/shots/visual_r18/ab_chase_night.png",
+      "note": "B (bar) establishes a dark coastal road with strong headlight beam and silhouette depth; A (ours) has a visible beam but low-poly vegetation and a flat, clipped night field."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r18/cockpit_overcast.png",
+      "bar_shot": "refs/slowroads/official/sr_11.jpg",
+      "ab_image": "gauntlet/shots/visual_r18/ab_cockpit_overcast.png",
+      "note": "A (bar) has a believable A-pillar, mirror, road perspective, and restrained overcast contrast; B (ours) is dominated by a chunky dark dashboard and simplified autumn cards."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r18/season_winter.png",
+      "bar_shot": "refs/slowroads/official/sr_19.jpg",
+      "ab_image": "gauntlet/shots/visual_r18/ab_season_winter.png",
+      "note": "B (bar) is a coherent open snow landscape with long guardrail and soft terrain; A (ours) keeps recognizable road and snow palette but exposes polygon seams, sparse cards, and dark trunks."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r18/vista_wide.png",
+      "bar_shot": "refs/slowroads/official/sr_03.jpg",
+      "ab_image": "gauntlet/shots/visual_r18/ab_vista_wide.png",
+      "note": "B (bar) delivers a layered lake-and-ridge vista with a small car; A (ours) is an elevated road/bridge over a shallow green field with no comparable atmospheric depth."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r18/cockpit_noon.png",
+      "bar_shot": "refs/slowroads/official/sr_11.jpg",
+      "ab_image": "gauntlet/shots/visual_r18/ab_cockpit_noon.png",
+      "note": "A (bar) has realistic windshield framing, mirror, lane markings, and road-side vegetation; B (ours) has a cleaner centered lane but an oversized low-poly cockpit and simplified terrain."
+    }
+  ],
+  "verdict_text": "Independent round-18 seven-shot blind review: the official bar wins all seven randomized comparisons and the side call is correct 7/7. Road shoulder blending and snow seams are visible improvements, but the dominant read is still low-poly procedural scenery: faceted repeated vegetation, hard verge polygons, and missing continuous landform depth. Lighting/exposure and cockpit geometry remain clear secondary mismatches."
+}

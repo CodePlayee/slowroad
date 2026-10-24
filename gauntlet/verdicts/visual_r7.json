@@ -1,0 +1,25 @@
+{
+ "piece": "visual",
+ "round": 7,
+ "winner": "bar",
+ "score": 43,
+ "blind_pick_correct": 4,
+ "gap": "Replace the low-poly, single-plane landscape read with smooth contour-following terrain, layered distant ridges, and natural atmospheric depth; this is the dominant difference in every camera.",
+ "secondary_gaps": [
+  "Road and verge materials are flat and repetitive, with a conspicuous tan shoulder strip and sparse markings instead of a cohesive road cut and edge treatment.",
+  "Golden hour lacks the bar's warm exposure, cured grass color, and long coherent shadows; night lacks a readable headlight cone and blue ambient fill.",
+  "Winter is a grayscale vegetation tint over exposed ground rather than continuous snow coverage and snow-shaped landforms.",
+  "Cockpit framing has an oversized dark dashboard and simplified mirror/interior detail, while the reference makes the windshield, wheel, and road aperture feel photographic.",
+  "Near vegetation repeats as billboard-like clumps with hard silhouettes and visible tiling, especially in chase and elevated vista views."
+ ],
+ "evidence": [
+  {"our_shot":"gauntlet/shots/visual_r7b/chase_summer_noon.png","bar_shot":"refs/slowroads/official/sr_01.jpg","ab_image":"gauntlet/shots/visual_r7b/ab_chase_summer_noon.png","note":"Blind call A (bar), correct. The bar opens into a broad lake-backed valley with several readable terrain layers; ours is greener but shallower, with faceted foliage and a narrow enclosed ribbon."},
+  {"our_shot":"gauntlet/shots/visual_r7b/chase_golden.png","bar_shot":"refs/slowroads/official/sr_04.jpg","ab_image":"gauntlet/shots/visual_r7b/ab_chase_golden.png","note":"Blind call B (bar), incorrect. The bar has convincing low warm sun, gold fields, dark land exposure, and long shadows; ours is a pale washed sunset with weak shadow structure."},
+  {"our_shot":"gauntlet/shots/visual_r7b/chase_night.png","bar_shot":"refs/slowroads/official/sr_20.jpg","ab_image":"gauntlet/shots/visual_r7b/ab_chase_night.png","note":"Blind call A (bar), correct. Ours reads as night with stars but loses terrain and road illumination; the bar supplies a blue value ramp, shoreline context, sign, and strong headlight cone."},
+  {"our_shot":"gauntlet/shots/visual_r7b/cockpit_overcast.png","bar_shot":"refs/slowroads/official/sr_11.jpg","ab_image":"gauntlet/shots/visual_r7b/ab_cockpit_overcast.png","note":"Blind call B (bar), correct. Ours has the intended cockpit and autumn overcast, but the dark slab dashboard and faceted trees dominate; the bar has a credible windshield, mirror, road, and hillside."},
+  {"our_shot":"gauntlet/shots/visual_r7b/season_winter.png","bar_shot":"refs/slowroads/official/sr_19.jpg","ab_image":"gauntlet/shots/visual_r7b/ab_season_winter.png","note":"Blind call A (bar), correct. Ours applies pale foliage and ground tint while retaining exposed shoulder and blue sky; the bar is a continuous snow world with snow-shaped ridges."},
+  {"our_shot":"gauntlet/shots/visual_r7b/vista_wide.png","bar_shot":"refs/slowroads/official/sr_03.jpg","ab_image":"gauntlet/shots/visual_r7b/ab_vista_wide.png","note":"Blind call B (bar), incorrect. Ours has a plausible elevated camera but repetitive flat greens and a dominant wall/bridge edge; the bar's water, cut/fill road, and atmospheric ridge layers read immediately."},
+  {"our_shot":"gauntlet/shots/visual_r7b/cockpit_noon.png","bar_shot":"refs/slowroads/official/sr_11.jpg","ab_image":"gauntlet/shots/visual_r7b/ab_cockpit_noon.png","note":"Blind call B (bar), incorrect. Ours gets the cockpit idea and road alignment, but dashboard materials are noisy/dark and near vegetation is low-poly; the bar has a cleaner driver aperture, mirror, and natural road cut."}
+ ],
+ "verdict_text": "Fresh round 7 rendering is technically complete and recognizable, but the bar wins all seven visual comparisons. The single largest actionable deficit is landscape depth and material realism: low-poly near vegetation plus flat terrain shading prevent the rolling, layered Slow Roads place-read even when camera and road intent are correct."
+}

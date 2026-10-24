@@ -1,0 +1,321 @@
+{
+  "format": "slowroad-woodland-v1",
+  "coordinateSystem": "Three.js Y-up; each root is translated to y=0 and scaled so total height=1",
+  "buffer": "trees.bin",
+  "materials": {
+    "bark": {
+      "slot": 0,
+      "texture": "pine_color_1k.jpg / oak_color_1k.jpg"
+    },
+    "leaf": {
+      "slot": 1,
+      "texture": "pine_color.png / oak_color.png"
+    }
+  },
+  "trees": {
+    "pine": {
+      "near": {
+        "root": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "normalizedHeight": 1,
+        "original": {
+          "height": 51.1375846862793,
+          "width": 0.6250910173511278,
+          "depth": 0.5513704316861303
+        },
+        "triangles": 19872,
+        "parts": {
+          "bark": {
+            "material": "bark",
+            "triangles": 10032,
+            "attributes": {
+              "position": {
+                "byteOffset": 0,
+                "byteLength": 77172,
+                "count": 19293
+              },
+              "uv": {
+                "byteOffset": 77172,
+                "byteLength": 51448,
+                "count": 12862
+              },
+              "index": {
+                "byteOffset": 128620,
+                "byteLength": 60192,
+                "count": 30096
+              },
+              "normal": {
+                "byteOffset": 188812,
+                "byteLength": 77172,
+                "count": 19293
+              }
+            }
+          },
+          "leaf": {
+            "material": "leaf",
+            "triangles": 9840,
+            "attributes": {
+              "position": {
+                "byteOffset": 265984,
+                "byteLength": 236160,
+                "count": 59040
+              },
+              "uv": {
+                "byteOffset": 502144,
+                "byteLength": 157440,
+                "count": 39360
+              },
+              "index": {
+                "byteOffset": 659584,
+                "byteLength": 59040,
+                "count": 29520
+              },
+              "normal": {
+                "byteOffset": 718624,
+                "byteLength": 236160,
+                "count": 59040
+              }
+            }
+          }
+        }
+      },
+      "mid": {
+        "root": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "normalizedHeight": 1,
+        "original": {
+          "height": 50.9483528137207,
+          "width": 0.5700977777078956,
+          "depth": 0.5542630152207224
+        },
+        "triangles": 1960,
+        "parts": {
+          "bark": {
+            "material": "bark",
+            "triangles": 1320,
+            "attributes": {
+              "position": {
+                "byteOffset": 954784,
+                "byteLength": 12360,
+                "count": 3090
+              },
+              "uv": {
+                "byteOffset": 967144,
+                "byteLength": 8240,
+                "count": 2060
+              },
+              "index": {
+                "byteOffset": 975384,
+                "byteLength": 7920,
+                "count": 3960
+              },
+              "normal": {
+                "byteOffset": 983304,
+                "byteLength": 12360,
+                "count": 3090
+              }
+            }
+          },
+          "leaf": {
+            "material": "leaf",
+            "triangles": 640,
+            "attributes": {
+              "position": {
+                "byteOffset": 995664,
+                "byteLength": 15360,
+                "count": 3840
+              },
+              "uv": {
+                "byteOffset": 1011024,
+                "byteLength": 10240,
+                "count": 2560
+              },
+              "index": {
+                "byteOffset": 1021264,
+                "byteLength": 3840,
+                "count": 1920
+              },
+              "normal": {
+                "byteOffset": 1025104,
+                "byteLength": 15360,
+                "count": 3840
+              }
+            }
+          }
+        }
+      }
+    },
+    "oak": {
+      "near": {
+        "root": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "normalizedHeight": 1,
+        "original": {
+          "height": 64.38959503173828,
+          "width": 0.7771673440428319,
+          "depth": 0.8484369299616229
+        },
+        "triangles": 17796,
+        "parts": {
+          "bark": {
+            "material": "bark",
+            "triangles": 3796,
+            "attributes": {
+              "position": {
+                "byteOffset": 1040464,
+                "byteLength": 38400,
+                "count": 9600
+              },
+              "uv": {
+                "byteOffset": 1078864,
+                "byteLength": 25600,
+                "count": 6400
+              },
+              "index": {
+                "byteOffset": 1104464,
+                "byteLength": 22776,
+                "count": 11388
+              },
+              "normal": {
+                "byteOffset": 1127240,
+                "byteLength": 38400,
+                "count": 9600
+              }
+            }
+          },
+          "leaf": {
+            "material": "leaf",
+            "triangles": 14000,
+            "attributes": {
+              "position": {
+                "byteOffset": 1165640,
+                "byteLength": 336000,
+                "count": 84000
+              },
+              "uv": {
+                "byteOffset": 1501640,
+                "byteLength": 224000,
+                "count": 56000
+              },
+              "index": {
+                "byteOffset": 1725640,
+                "byteLength": 84000,
+                "count": 42000
+              },
+              "normal": {
+                "byteOffset": 1809640,
+                "byteLength": 336000,
+                "count": 84000
+              }
+            }
+          }
+        }
+      },
+      "mid": {
+        "root": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "normalizedHeight": 1,
+        "original": {
+          "height": 65.55448913574219,
+          "width": 0.8118209518271935,
+          "depth": 0.8498707805238097
+        },
+        "triangles": 3728,
+        "parts": {
+          "bark": {
+            "material": "bark",
+            "triangles": 2328,
+            "attributes": {
+              "position": {
+                "byteOffset": 2145640,
+                "byteLength": 27408,
+                "count": 6852
+              },
+              "uv": {
+                "byteOffset": 2173048,
+                "byteLength": 18272,
+                "count": 4568
+              },
+              "index": {
+                "byteOffset": 2191320,
+                "byteLength": 13968,
+                "count": 6984
+              },
+              "normal": {
+                "byteOffset": 2205288,
+                "byteLength": 27408,
+                "count": 6852
+              }
+            }
+          },
+          "leaf": {
+            "material": "leaf",
+            "triangles": 1400,
+            "attributes": {
+              "position": {
+                "byteOffset": 2232696,
+                "byteLength": 33600,
+                "count": 8400
+              },
+              "uv": {
+                "byteOffset": 2266296,
+                "byteLength": 22400,
+                "count": 5600
+              },
+              "index": {
+                "byteOffset": 2288696,
+                "byteLength": 8400,
+                "count": 4200
+              },
+              "normal": {
+                "byteOffset": 2297096,
+                "byteLength": 33600,
+                "count": 8400
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

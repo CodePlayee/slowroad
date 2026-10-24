@@ -1,0 +1,26 @@
+{
+ "piece": "visual",
+ "round": 10,
+ "winner": "bar",
+ "score": 45,
+ "blind_pick_correct": 6,
+ "gap": "Replace the low-poly, flat landscape read with continuous natural terrain materials, readable layered ridges, and photographic depth; this remains the dominant visual difference in every camera.",
+ "secondary_gaps": [
+  "Near vegetation has varied cards and denser clumps, but silhouettes remain faceted/repetitive and the ground is broken into conspicuous flat tan/gray polygons.",
+  "Golden lighting is washed out and lacks the bar's warm, high-contrast exposure, coherent long shadows, and rich field color.",
+  "Night reads as a dark starry scene but loses the bar's lake/mountain context, blue ambient layering, and strong headlight cone.",
+  "Winter is a pale tint over the existing terrain rather than continuous snow coverage with snow-shaped landforms and road treatment.",
+  "Cockpit framing is recognizable but the oversized dark slab dashboard and missing mirror/A-pillar realism make it feel like a prototype rather than a photographic driver view.",
+  "Elevated vista has a readable road and bridge, yet lacks water, smooth landform contours, and the bar's multi-distance ridge/aerial perspective."
+ ],
+ "evidence": [
+  {"our_shot":"gauntlet/shots/visual_r10/chase_summer_noon.png","bar_shot":"refs/slowroads/official/sr_01.jpg","ab_image":"gauntlet/shots/visual_r10/ab_chase_summer_noon.png","note":"Blind call A (ours), correct. Ours has a coherent road/car composition and denser foliage than prior passes, but the bar has smooth rolling hills, lake-backed depth, and natural continuous grass while ours exposes faceted clumps and flat verge patches."},
+  {"our_shot":"gauntlet/shots/visual_r10/chase_golden.png","bar_shot":"refs/slowroads/official/sr_04.jpg","ab_image":"gauntlet/shots/visual_r10/ab_chase_golden.png","note":"Blind call A (bar), incorrect. The bar's red car, warm gold fields, rich contrast, and long shadows are immediately photographic; ours is a pale washed sunset with weak shadow structure and sparse flat ground."},
+  {"our_shot":"gauntlet/shots/visual_r10/chase_night.png","bar_shot":"refs/slowroads/official/sr_20.jpg","ab_image":"gauntlet/shots/visual_r10/ab_chase_night.png","note":"Blind call A (ours), correct. Ours has stars and headlights, but the road and vegetation collapse into near-black low-poly silhouettes; the bar preserves a readable shoreline/mountain silhouette, blue night ramp, sign, and headlight pool."},
+  {"our_shot":"gauntlet/shots/visual_r10/cockpit_overcast.png","bar_shot":"refs/slowroads/official/sr_11.jpg","ab_image":"gauntlet/shots/visual_r10/ab_cockpit_overcast.png","note":"Blind call A (ours), correct. Ours communicates cockpit and autumn overcast, but the dashboard fills the lower frame and the trees/road are faceted; the bar's mirror, A-pillar, hillside, and road cut have much stronger realism."},
+  {"our_shot":"gauntlet/shots/visual_r10/season_winter.png","bar_shot":"refs/slowroads/official/sr_19.jpg","ab_image":"gauntlet/shots/visual_r10/ab_season_winter.png","note":"Blind call A (ours), correct. Ours changes foliage and ground toward winter while retaining exposed polygon shoulders and blue sky; the bar is a continuous snow world with snow-shaped relief and integrated guardrail."},
+  {"our_shot":"gauntlet/shots/visual_r10/vista_wide.png","bar_shot":"refs/slowroads/official/sr_03.jpg","ab_image":"gauntlet/shots/visual_r10/ab_vista_wide.png","note":"Blind call A (ours), correct. Ours has an elevated road/bridge line and richer card density, but remains a flat green patchwork with no water or layered ridges; the bar has smooth mountain contours, lake, and strong aerial perspective."},
+  {"our_shot":"gauntlet/shots/visual_r10/cockpit_noon.png","bar_shot":"refs/slowroads/official/sr_11.jpg","ab_image":"gauntlet/shots/visual_r10/ab_cockpit_noon.png","note":"Blind call A (ours), correct. The road alignment and wheel are clear, yet the noisy dark interior and low-poly verge dominate; the bar provides a clean windshield aperture, mirror, hillside texture, and natural road material."}
+ ],
+ "verdict_text": "Fresh round 10 blind review: the official bar wins all seven visual comparisons; ours was identified correctly in 6/7 randomized pairs. The R9 changes improve vegetation variety and add some contour shading, but do not close the central gap: the scene still reads as a low-poly card landscape over flat polygon terrain, without the bar's continuous materials, multi-distance landforms, and photographic atmospheric depth."
+}

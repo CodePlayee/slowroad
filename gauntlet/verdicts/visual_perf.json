@@ -1,0 +1,29 @@
+{
+ "piece": "visual_perf",
+ "round": 1,
+ "winner": "bar",
+ "score": 37,
+ "blind_pick_correct": 7,
+ "gap": "The optimization pass leaves a visibly sparse, low-poly landscape: reduced near/mid vegetation exposes broad flat verge planes and the scene still lacks the reference's layered terrain depth and natural material response.",
+ "visual_regression": {
+  "obvious": true,
+  "summary": "Compared with the immediately prior rendered shots, vegetation is visibly thinner in the near and middle ground, with larger bare pale patches (most obvious in chase_summer_noon and season_winter). This is a visual density regression, not a blank-frame or residency failure."
+ },
+ "secondary_gaps": [
+  "Golden hour remains washed and pale versus the bar's warm land exposure, cured grass, and long coherent shadows.",
+  "Night has stars and a readable road but weak headlight illumination and very little blue ambient terrain separation.",
+  "Winter reads as a tint over terrain with exposed shoulder rather than continuous snow coverage and snow-shaped landforms.",
+  "Cockpit framing is recognizable but the dark oversized dashboard and simplified interior lack the bar's windshield/mirror realism.",
+  "Vista-wide composition has a plausible elevated road but repetitive flat greens and no water-backed, multi-ridge atmospheric depth."
+ ],
+ "evidence": [
+  {"our_shot":"gauntlet/shots/visual_perf/chase_summer_noon.png","bar_shot":"refs/slowroads/official/sr_01.jpg","ab_image":"gauntlet/shots/visual_perf/ab_chase_summer_noon.png","blind_call":"B","call":"bar","note":"Bar has continuous layered hills, dense natural foliage, and a broader valley read; ours is enclosed by sparse clumps and exposed flat verge."},
+  {"our_shot":"gauntlet/shots/visual_perf/chase_golden.png","bar_shot":"refs/slowroads/official/sr_04.jpg","ab_image":"gauntlet/shots/visual_perf/ab_chase_golden.png","blind_call":"B","call":"bar","note":"Bar supplies warm golden exposure, dark land contrast, and long shadows; ours is pale and low-contrast with sparse grass clumps."},
+  {"our_shot":"gauntlet/shots/visual_perf/chase_night.png","bar_shot":"refs/slowroads/official/sr_20.jpg","ab_image":"gauntlet/shots/visual_perf/ab_chase_night.png","blind_call":"A","call":"bar","note":"Bar has stronger blue night value separation and a convincing headlight cone; ours is much darker with weak road/terrain illumination."},
+  {"our_shot":"gauntlet/shots/visual_perf/cockpit_overcast.png","bar_shot":"refs/slowroads/official/sr_11.jpg","ab_image":"gauntlet/shots/visual_perf/ab_cockpit_overcast.png","blind_call":"B","call":"bar","note":"Bar's windshield, mirror, road and hillside read photographically; ours has an oversized dark dash and faceted autumn trees."},
+  {"our_shot":"gauntlet/shots/visual_perf/season_winter.png","bar_shot":"refs/slowroads/official/sr_19.jpg","ab_image":"gauntlet/shots/visual_perf/ab_season_winter.png","blind_call":"A","call":"bar","note":"Bar is a continuous snow world with snow-shaped ridges; ours is a pale filter over exposed shoulder and sparse winter clumps."},
+  {"our_shot":"gauntlet/shots/visual_perf/vista_wide.png","bar_shot":"refs/slowroads/official/sr_03.jpg","ab_image":"gauntlet/shots/visual_perf/ab_vista_wide.png","blind_call":"A","call":"bar","note":"Bar has water, contour-following road and atmospheric ridge layers; ours has repetitive flat greens and a dominant bridge/wall edge."},
+  {"our_shot":"gauntlet/shots/visual_perf/cockpit_noon.png","bar_shot":"refs/slowroads/official/sr_11.jpg","ab_image":"gauntlet/shots/visual_perf/ab_cockpit_noon.png","blind_call":"A","call":"bar","note":"Bar has a cleaner driver aperture and natural road cut; ours is recognizable but dashboard materials and sparse low-poly vegetation dominate."}
+ ],
+ "verdict_text": "Fresh performance-optimized renders were fully resident and nonblank, but the official bar wins all seven blind comparisons. The largest actionable difference is reduced vegetation density exposing broad flat verge planes, compounding the persistent low-poly material and missing layered-terrain depth gap."
+}

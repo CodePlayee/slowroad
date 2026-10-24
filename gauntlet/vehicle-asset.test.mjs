@@ -1,0 +1,81 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { registerHooks } from 'node:module';
+import test from 'node:test';
+import * as THREE from 'three';
+const src = new URL('../src/', import.meta.url).href;
+registerHooks({ load(url, context, next) {
+  return url.startsWith(src) && url.endsWith('.js')
+    ? { format: 'module', source: readFileSync(new URL(url), 'utf8'), shortCircuit: true } : next(url, context);
+} });
+const { prepareVehicleAsset } = await import('../src/vehicle/asset.js');
+const { Vehicle } = await import('../src/vehicle/vehicle.js');
+const { VEHICLE: V } = await import('../src/vehicle/params.js');
+
+test('the supplied compact GLB is unchanged and its Draco decoder is served locally', () => {
+  const file = readFileSync(new URL('../public/models/tesla-model-y-2025-awd-compact.glb', import.meta.url));
+  assert.equal(createHash('sha256').update(file).digest('hex'), 'b3301a2b4b4935c9323d1a430461cfca85096b674b7d8535c5dd6e3693492c90');
+  const json = JSON.parse(file.toString('utf8', 20, 20 + file.readUInt32LE(12)));
+  assert.ok(json.extensionsRequired.includes('KHR_draco_mesh_compression'));
+  assert.ok(json.extensionsRequired.includes('EXT_texture_webp'));
+  assert.equal(json.images.length, 16);
+  assert.equal(json.animations?.length || 0, 0);
+  assert.equal(json.meshes.reduce((sum, mesh) => sum + mesh.primitives.length, 0), 22);
+  const wasm = readFileSync(new URL('../public/draco/draco_decoder.wasm', import.meta.url));
+  assert.deepEqual([...wasm.subarray(0, 4)], [0, 97, 115, 109]);
+  assert.ok(readFileSync(new URL('../public/draco/draco_wasm_wrapper.js', import.meta.url)).length > 10000);
+});
+
+test('Model Y keeps its materials and interior, excludes the shadow from scale, and grounds its tyres', () => {
+  const source = new THREE.Group(), registered = [];
+  const material = (name, options = {}) => Object.assign(new THREE.MeshStandardMaterial(options), { name });
+  const paint = material('M_Ext_Paint', { color: 0xaaa6b1, metalness: 0.93, roughness: 0.51 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.1, 1.63, 4.75).translate(0, 0.815, 0), paint);
+  body.name = 'Roof_Paint'; source.add(body);
+  const interior = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.1, 0.5), material('M_Int_ChromePlastic'));
+  interior.position.set(0, 0.9, 0.6); source.add(interior);
+  const glassMaterial = material('M_Ext_Glass', { transparent: true, opacity: 0.4 });
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.5), glassMaterial);
+  glass.name = 'Door_RF_Glass'; glass.position.set(-0.8, 1.2, 0); glass.scale.x = -1; source.add(glass);
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(8, 8).rotateX(-Math.PI / 2), material('M_ExtCarShadow', { transparent: true }));
+  shadow.position.y = -0.2; source.add(shadow);
+  const fallback = new THREE.Mesh(new THREE.BoxGeometry(), paint), group = new THREE.Group();
+  group.add(fallback);
+  const vehicle = Object.assign(Object.create(Vehicle.prototype), { group, interior: new THREE.Group(),
+    atmo: { register: mat => registered.push(mat) }, headlight: new THREE.SpotLight() });
+  const env = { texture: new THREE.Texture() };
+  prepareVehicleAsset(vehicle, source, env);
+  vehicle.group.updateMatrixWorld(true);
+  assert.equal(vehicle.assetReady, true);
+  assert.equal(vehicle.asset.name, 'tesla-model-y-2025-awd');
+  const meshes = vehicle.asset.children;
+  const renderedBody = meshes.find(mesh => mesh.name === 'Roof_Paint');
+  const bounds = new THREE.Box3().setFromObject(renderedBody);
+  assert.ok(Math.abs(bounds.getSize(new THREE.Vector3()).z - 4.79) < 1e-6);
+  assert.ok(Math.abs(bounds.min.y + V.rideHeight - 0.04) < 1e-6);
+  assert.equal(renderedBody.material.metalness, paint.metalness);
+  assert.equal(renderedBody.material.roughness, paint.roughness);
+  assert.ok(renderedBody.material.color.equals(paint.color));
+  assert.notEqual(renderedBody.material, paint);
+  assert.equal(renderedBody.material.envMap, env.texture);
+  assert.equal(paint.envMap, null);
+  const renderedGlass = meshes.find(mesh => mesh.name === 'Door_RF_Glass');
+  assert.equal(renderedGlass.material.opacity, 0.4);
+  assert.equal(renderedGlass.material.transparent, true);
+  assert.equal(renderedGlass.material.depthWrite, false);
+  assert.ok(renderedGlass.scale.x < 0);
+  assert.equal(registered.length, 3);
+  assert.equal(meshes.length, 3);
+  assert.ok(meshes.every(mesh => !mesh.castShadow && !mesh.receiveShadow));
+  assert.ok(meshes.every(mesh => mesh.material.name !== 'M_ExtCarShadow'));
+  assert.equal(fallback.visible, false);
+  assert.equal(vehicle.assetWheels.length, 0, 'this synthetic fixture contains no wheel primitives');
+  assert.ok(vehicle.cockpitEye.x > 0 && vehicle.cockpitEye.y > 1 && vehicle.cockpitEye.y < 1.6);
+  vehicle.setCockpit(true);
+  assert.ok(meshes.filter(mesh => mesh.visible).every(mesh => mesh.userData.interior));
+  assert.ok(meshes.some(mesh => mesh.visible));
+  vehicle.setCockpit(false);
+  assert.ok(meshes.every(mesh => mesh.visible));
+  assert.equal(fallback.visible, false);
+});

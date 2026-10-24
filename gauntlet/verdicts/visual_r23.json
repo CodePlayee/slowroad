@@ -1,0 +1,45 @@
+{
+  "piece": "visual",
+  "round": 23,
+  "agent": "independent_visual_r23",
+  "capture": {
+    "source": "current working tree",
+    "browser": "r23",
+    "cdp_port": 9358,
+    "resolution": "1920x1080",
+    "randomization_browser": "ab23",
+    "randomization_port": 9359,
+    "all_frames_resident": true,
+    "runtime": {
+      "fps_range": [56.9, 61.2],
+      "residency_pending": 0
+    }
+  },
+  "winner": "bar",
+  "score": 43,
+  "blind_pick_correct": "7/7",
+  "largest_gap": "Continuous grounded landform and material depth: the build still exposes broad hard-edged shoulder polygons and repeated low-poly grass/tree clumps, while the bar has smooth rolling terrain, dense layered vegetation, and natural contact shading.",
+  "secondary_gaps": [
+    "Golden and night states are materially flatter and less readable: weak warm exposure and headlight/local-light response versus the bar's saturated low sun and road illumination.",
+    "Cockpit and vehicle geometry remain visibly stylized and occupy a different framing/read from the authored reference vehicle interiors.",
+    "Wide vista lacks the bar's water-backed composition and multi-distance ridge scale; shadows on the elevated road are overly heavy."
+  ],
+  "comparability": {
+    "notes": "Shots use the frozen params in gauntlet/shots.json. The canonical season_winter bar is terrestrial refs/slowroads/official/sr_13.jpg.",
+    "mismatches": {
+      "chase_dawn": ["season/biome: build is spring dawn while sr_13 is terrestrial winter; season identity is N/A", "camera/framing differs"],
+      "season_winter": ["camera/framing differs; judge geometry/material craft and winter treatment, not exact pose"],
+      "cockpit_noon": ["reference has different cockpit/road context; cockpit treatment and visual clarity remain comparable"]
+    }
+  },
+  "shots": [
+    {"id":"chase_summer_noon","blind_pick":"A","identity_guess":"A=bar","winner":"bar","our_shot":"gauntlet/shots/visual_r23/chase_summer_noon.png","bar_shot":"refs/slowroads/official/sr_01.jpg","ab_image":"gauntlet/shots/visual_r23/ab_chase_summer_noon.png","note":"Bar opens into a broad lake-backed valley with smooth grass and authored vehicle; build has readable road but hard shoulder planes and stamped clumps."},
+    {"id":"chase_golden","blind_pick":"B","identity_guess":"B=bar","winner":"bar","our_shot":"gauntlet/shots/visual_r23/chase_golden.png","bar_shot":"refs/slowroads/official/sr_04.jpg","ab_image":"gauntlet/shots/visual_r23/ab_chase_golden.png","note":"Bar has saturated warm low sun, long controlled shadows, and cohesive fields; build is washed out with a dark road shadow and flat verge."},
+    {"id":"chase_dawn","blind_pick":"B","identity_guess":"B=bar","winner":"bar","our_shot":"gauntlet/shots/visual_r23/chase_dawn.png","bar_shot":"refs/slowroads/official/sr_13.jpg","ab_image":"gauntlet/shots/visual_r23/ab_chase_dawn.png","note":"Semantic season/biome mismatch (spring dawn build versus terrestrial winter bar); even with season N/A, bar has substantially richer layered relief, snow/contact materials, and atmospheric depth."},
+    {"id":"chase_night","blind_pick":"A","identity_guess":"A=bar","winner":"bar","our_shot":"gauntlet/shots/visual_r23/chase_night.png","bar_shot":"refs/slowroads/official/sr_20.jpg","ab_image":"gauntlet/shots/visual_r23/ab_chase_night.png","note":"Bar's lake edge, headlights, road markings, and exposure remain readable; build is very dark with weak local illumination and flatter scenery."},
+    {"id":"cockpit_noon","blind_pick":"B","identity_guess":"B=bar","winner":"bar","our_shot":"gauntlet/shots/visual_r23/cockpit_noon.png","bar_shot":"refs/slowroads/official/sr_11.jpg","ab_image":"gauntlet/shots/visual_r23/ab_cockpit_noon.png","note":"Bar cockpit has convincing interior/road framing and natural hillside; build dashboard is blocky and consumes more of the frame while terrain remains low-poly."},
+    {"id":"vista_wide","blind_pick":"A","identity_guess":"A=bar","winner":"bar","our_shot":"gauntlet/shots/visual_r23/vista_wide.png","bar_shot":"refs/slowroads/official/sr_03.jpg","ab_image":"gauntlet/shots/visual_r23/ab_vista_wide.png","note":"Bar delivers a clean lake-backed mountain vista and contouring road; build's elevated road is legible but lacks water and has heavy canopy shadows and repetitive ground cards."},
+    {"id":"season_winter","blind_pick":"A","identity_guess":"A=bar","winner":"bar","our_shot":"gauntlet/shots/visual_r23/season_winter.png","bar_shot":"refs/slowroads/official/sr_13.jpg","ab_image":"gauntlet/shots/visual_r23/ab_season_winter.png","note":"Correct terrestrial winter comparison: bar is a continuous snow world with sculpted hills and falling snow; build has pale snow cover but exposed hard polygons, sparse clumps, and summer-blue sky."}
+  ],
+  "verdict_text": "Independent fresh seven-shot A/B review. The official bar wins all seven quality comparisons; blind identity guesses are 7/7. The current road-aware terrain refinement improves continuity enough to keep every frame readable, but the largest material gap remains continuous natural ground/vegetation integration and multi-distance landform depth. season_winter correctly uses terrestrial sr_13; chase_dawn is explicitly marked semantically incomparable on season/biome rather than granting season credit."
+}

@@ -1,0 +1,23 @@
+{
+  "piece": "visual",
+  "round": 1,
+  "winner": "bar",
+  "score": 23,
+  "blind_pick_correct": false,
+  "gap": "Replace the low-poly placeholder vehicle and vegetation materials with the bar's authored, physically coherent assets; the car silhouette and shading dominate every chase frame.",
+  "secondary_gaps": [
+    "Match reference exposure and atmosphere: golden hour is clipped at the sun and night crushes nearly all terrain detail.",
+    "Repair cockpit framing/geometry: the A/B frames have oversized opaque windshield bars and blank dashboard blocks instead of a believable interior.",
+    "Increase scene composition and terrain specificity to the references (coastal/water layers, cut/fill slopes, and readable depth in wide vistas)."
+  ],
+  "evidence": [
+    {"our_shot":"gauntlet/shots/visual_r1/chase_summer_noon.png","bar_shot":"refs/slowroads/official/sr_01.jpg","ab_image":"gauntlet/shots/visual_r1/ab_summer_noon.png","note":"Bar has a finished car, contour-following road and layered lake/hills; ours has a gray low-poly car and flatter generic vegetation. Blind pick A, reveal A=bar (incorrect)."},
+    {"our_shot":"gauntlet/shots/visual_r1/chase_golden.png","bar_shot":"refs/slowroads/official/sr_04.jpg","ab_image":"gauntlet/shots/visual_r1/ab_chase_golden.png","note":"Bar's close chase composition, dry-stone wall and controlled dusk exposure beat ours' blown sun, silhouette-black trees and gray placeholder car. Blind pick A, reveal A=bar (incorrect)."},
+    {"our_shot":"gauntlet/shots/visual_r1/chase_night.png","bar_shot":"refs/slowroads/official/sr_20.jpg","ab_image":"gauntlet/shots/visual_r1/ab_chase_night.png","note":"Bar preserves a readable illuminated road, vehicle and terrain at night; ours is almost entirely black with a weak cone and minimal detail. Blind pick A, reveal A=bar (incorrect)."},
+    {"our_shot":"gauntlet/shots/visual_r1/cockpit_overcast.png","bar_shot":"refs/slowroads/official/sr_11.jpg","ab_image":"gauntlet/shots/visual_r1/ab_cockpit_overcast.png","note":"Bar cockpit has coherent wheel, dash, mirror and road framing; ours is obstructed by giant opaque bars and rectangular UI-like blocks. Blind pick A, reveal A=bar (incorrect)."},
+    {"our_shot":"gauntlet/shots/visual_r1/season_winter.png","bar_shot":"refs/slowroads/official/sr_19.jpg","ab_image":"gauntlet/shots/visual_r1/ab_season_winter.png","note":"Ours communicates snow palette and bare trees, but bar has substantially more realistic snow surface, vehicle and mountain composition. Blind pick A (ours), reveal A=ours (incorrect because bar is stronger)."},
+    {"our_shot":"gauntlet/shots/visual_r1/vista_wide.png","bar_shot":"refs/slowroads/official/sr_03.jpg","ab_image":"gauntlet/shots/visual_r1/ab_vista_wide.png","note":"Bar's elevated coastal vista has convincing cut slope, water and authored vehicle; ours is a flat generic green aerial road with a tiny low-poly car. Blind pick B, reveal B=bar (correct)."},
+    {"our_shot":"gauntlet/shots/visual_r1/cockpit_noon.png","bar_shot":"refs/slowroads/official/sr_11.jpg","ab_image":"gauntlet/shots/visual_r1/ab_cockpit_noon.png","note":"Bar's cockpit remains legible and grounded; ours repeats the broken windshield bars and blank dashboard geometry. Blind pick A, reveal A=bar (incorrect)."}
+  ],
+  "verdict_text": "Harsh visual read: the bar wins all seven comparisons. Ours has a promising continuous road and seasonal color changes, but placeholder car geometry, vegetation aliasing/material noise, cockpit occlusion, and uncontrolled exposure are decisive. The top three global deficits are vehicle/assets, lighting/exposure, and cockpit geometry."
+}

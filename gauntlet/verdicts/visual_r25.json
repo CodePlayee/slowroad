@@ -1,0 +1,27 @@
+{
+  "round": 25,
+  "agent": "independent_visual_r25",
+  "captured_at": "2026-09-12",
+  "resolution": "1920x1080",
+  "browser": "headless CDP 9359",
+  "winter_bar": "refs/slowroads/official/sr_13.jpg",
+  "method": "Seven fresh frozen shots; each paired with its canonical official reference using randomized A/B order. Quality winner was chosen before opening the mapping key.",
+  "results": [
+    {"id":"chase_summer_noon","A":"bar","B":"ours","quality_winner":"A","identity_guess":"A=official","gap":"Stamped low-poly foliage, flat shoulder planes, and weaker near/mid/far terrain depth."},
+    {"id":"chase_golden","A":"bar","B":"ours","quality_winner":"A","identity_guess":"A=official","gap":"Warm-light reference has natural material response and continuous terrain; ours remains faceted and washed in comparison."},
+    {"id":"chase_night","A":"ours","B":"bar","quality_winner":"B","identity_guess":"B=official","gap":"Night reference has readable headlights, road reflections, and mountain silhouettes; ours is very dark with flat low-poly verge detail."},
+    {"id":"cockpit_noon","A":"bar","B":"ours","quality_winner":"A","identity_guess":"A=official","gap":"Cockpit reference has detailed physical dashboard and believable road/guardrail integration; ours has a stylized low-poly interior and terrain."},
+    {"id":"cockpit_overcast","A":"bar","B":"ours","quality_winner":"A","identity_guess":"A=official","gap":"Reference keeps soft overcast material contrast and realistic roadside slope; ours has coarse autumn cards and hard ground planes."},
+    {"id":"season_winter","A":"bar","B":"ours","quality_winner":"A","identity_guess":"A=official","gap":"Correct terrestrial winter fixture is present, but reference snow terrain is layered and naturally blended while ours is a flat white shoulder with sparse cards."},
+    {"id":"vista_wide","A":"bar","B":"ours","quality_winner":"A","identity_guess":"A=official","gap":"Reference has coherent lake/landform scale and atmospheric layers; ours reads as a high polygon road slab over a shallow field."}
+  ],
+  "summary": {
+    "quality_wins": {"ours": 0, "bar": 7, "tie": 0},
+    "identity_guesses_correct": 7,
+    "largest_gap": "Continuous grounded landscape depth and material integration: repeated billboard/card vegetation and broad hard-edged shoulder planes remain visibly procedural versus the reference's smooth, layered landform, foliage, and contact shading.",
+    "road_terrain_overlap_gone": true,
+    "road_terrain_note": "No visible road/terrain z-fighting or mesh penetration in the seven frozen views. The road edge is clean, but an abrupt shoulder/material seam remains and should not be treated as fully blended contact.",
+    "residency": "All seven captures reported pending=0."
+  },
+  "shots_dir": "gauntlet/shots/visual_r25"
+}

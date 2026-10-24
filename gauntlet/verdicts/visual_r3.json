@@ -1,0 +1,59 @@
+{
+  "piece": "visual",
+  "round": 3,
+  "winner": "bar",
+  "score": 53,
+  "blind_pick_correct": true,
+  "gap": "Replace the current uniformly low-poly terrain and vegetation with layered, texture-lit natural assets plus distance fog and contact shadows so near, mid, and far scenery match the reference's grounded photographic depth in every lighting state.",
+  "secondary_gaps": [
+    "Cockpit framing is dominated by a bulky dashboard and lacks the reference's believable windshield/A-pillar and instrument detail.",
+    "Golden-hour and night lighting are too flat/dim: the warm sun, headlight pools, and road reflections do not carry the bar's contrast.",
+    "Winter reads as a white palette but lacks a continuous snow surface/snow line and convincing cold atmospheric depth.",
+    "Vista composition has the road and car but not the bar's broad ridge/lake layers and aerial perspective."
+  ],
+  "evidence": [
+    {
+      "our_shot": "gauntlet/shots/visual_r3/chase_summer_noon.png",
+      "bar_shot": "refs/slowroads/official/sr_01.jpg",
+      "ab_image": "gauntlet/shots/visual_r3/ab_chase_summer_noon.png",
+      "note": "Blind pick B (correct): bar has authored rolling hills and natural asset variation; ours has dense-looking but visibly card-like trees/grass and a pale, wide shoulder."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r3/chase_golden.png",
+      "bar_shot": "refs/slowroads/official/sr_04.jpg",
+      "ab_image": "gauntlet/shots/visual_r3/ab_chase_golden.png",
+      "note": "Blind pick A (correct): bar carries a coherent low warm sun and long cast shadows; ours loses the golden-hour cue in a washed, low-contrast frame."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r3/chase_night.png",
+      "bar_shot": "refs/slowroads/official/sr_20.jpg",
+      "ab_image": "gauntlet/shots/visual_r3/ab_chase_night.png",
+      "note": "Blind pick A (correct): bar's moonlit road, headlight beam, and reflective markings establish a readable night journey; ours is mostly crushed vegetation with little illumination."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r3/cockpit_overcast.png",
+      "bar_shot": "refs/slowroads/official/sr_11.jpg",
+      "ab_image": "gauntlet/shots/visual_r3/ab_cockpit_overcast.png",
+      "note": "Blind pick B (correct): bar cockpit has a believable A-pillar, mirror, windshield and instrument cluster; ours is a dark oversized dash with minimal spatial cues."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r3/season_winter.png",
+      "bar_shot": "refs/slowroads/official/sr_19.jpg",
+      "ab_image": "gauntlet/shots/visual_r3/ab_season_winter.png",
+      "note": "Blind pick A (correct): bar has a continuous snowfield and mountain atmosphere; ours is gray vegetation pasted over exposed road/shoulder with bare polygonal branches."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r3/vista_wide.png",
+      "bar_shot": "refs/slowroads/official/sr_03.jpg",
+      "ab_image": "gauntlet/shots/visual_r3/ab_vista_wide.png",
+      "note": "Blind pick A (correct): bar's elevated view resolves layered ridges and water; ours is a flat green basin with hard-edged vegetation and weak atmospheric separation."
+    },
+    {
+      "our_shot": "gauntlet/shots/visual_r3/cockpit_noon.png",
+      "bar_shot": "refs/slowroads/official/sr_11.jpg",
+      "ab_image": "gauntlet/shots/visual_r3/ab_cockpit_noon.png",
+      "note": "Blind pick B (correct): bar's road-centered cockpit composition and steering geometry feel photographic; ours has an obstructive low-poly dash and flatter road/foliage shading."
+    }
+  ],
+  "verdict_text": "Fresh seven-shot blind A/B review: the official bar won all seven comparisons, and the blind side identification was correct 7/7. The route, car silhouette, and seasonal switches are present, but the whole scene still reads as low-poly procedural scenery rather than the bar's grounded, layered natural landscape. Prioritize a single asset/material/lighting pass that adds near-mid-far detail, contact shadows, and distance fog; then tune night/golden exposure and cockpit geometry."
+}

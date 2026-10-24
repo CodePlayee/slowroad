@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Slow Roads ++</title>
+    <style>
+      html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0b0e13; }
+      canvas { display: block; }
+      #hud {
+        position: fixed; inset: 0; pointer-events: none;
+        display: grid; box-sizing: border-box; padding: 28px 28px 26px;
+        grid-template-columns: minmax(220px, 1fr) minmax(0, 440px);
+        grid-template-rows: 1fr auto auto;
+        grid-template-areas: ". ." "mode meta" "readout meta";
+        gap: 8px 24px; align-items: end;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: #eef2f7; text-shadow: 0 1px 3px rgba(0,0,0,.6);
+      }
+      #hud.hidden { display: none; }
+      #hud .readout {
+        grid-area: readout; min-width: 0;
+        display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px;
+      }
+      #hud .kph { font-size: 46px; font-weight: 300; letter-spacing: 0; }
+      #hud .kph small { font-size: 14px; opacity: .65; margin-left: 5px; }
+      #hud .odo { font-size: 15px; opacity: .8; }
+      #hud .meta {
+        grid-area: meta; min-width: 0; text-align: right; overflow-wrap: anywhere;
+        font-size: 13px; line-height: 1.55; opacity: .78;
+      }
+      #hud-runtime { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #hud .shortcuts { opacity: .55; }
+      #hud .autodrive {
+        grid-area: mode; font-size: 11px; opacity: .6;
+      }
+      @media (max-width: 720px) {
+        #hud {
+          padding: max(18px, env(safe-area-inset-top)) 18px max(22px, env(safe-area-inset-bottom));
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-rows: auto 1fr auto auto;
+          grid-template-areas: "meta" "." "mode" "readout";
+        }
+        #hud .shortcuts { display: none; }
+      }
+      #boot {
+        position: fixed; inset: 0; display: grid; place-items: center;
+        background: #0b0e13; color: #8fa3bd; font-family: ui-monospace, Menlo, monospace;
+        font-size: 12px; letter-spacing: 3px; transition: opacity .4s; z-index: 10;
+      }
+      #boot.gone { opacity: 0; pointer-events: none; }
+      #err {
+        position: fixed; left: 0; right: 0; top: 0; z-index: 20; display: none;
+        background: #43121a; color: #ffd9de; font: 12px/1.5 ui-monospace, Menlo, monospace;
+        padding: 10px 16px; white-space: pre-wrap; max-height: 40vh; overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="boot">GENERATING WORLD</div>
+    <div id="err"></div>
+    <div id="hud">
+      <div class="readout">
+        <div class="kph"><span id="hud-kph">0</span><small>KPH</small></div>
+        <div class="odo"><span id="hud-km">0.00</span> KM</div>
+      </div>
+      <div class="autodrive" id="hud-mode">AUTODRIVE</div>
+      <div class="meta" id="hud-meta">
+        <div id="hud-environment"></div>
+        <div id="hud-runtime"></div>
+        <span class="shortcuts">C cam · H hud · [ ] time · , . season · P pause</span>
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

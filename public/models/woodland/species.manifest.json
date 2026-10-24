@@ -1,0 +1,316 @@
+{
+  "format": "slowroad-woodland-v1",
+  "buffer": "species.bin",
+  "coordinateSystem": "Three.js Y-up; root centered at x=z=0, translated to y=0, total height=1",
+  "generator": "@dgreenheck/ez-tree 1.1.0",
+  "trees": {
+    "birch": {
+      "near": {
+        "root": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "normalizedHeight": 1,
+        "original": {
+          "height": 77.71331024169922,
+          "width": 0.7855368264346917,
+          "depth": 0.6622807207001662
+        },
+        "triangles": 8676,
+        "parts": {
+          "bark": {
+            "material": "bark",
+            "triangles": 4068,
+            "attributes": {
+              "position": {
+                "byteOffset": 0,
+                "byteLength": 38232,
+                "count": 9558
+              },
+              "normal": {
+                "byteOffset": 38232,
+                "byteLength": 38232,
+                "count": 9558
+              },
+              "uv": {
+                "byteOffset": 76464,
+                "byteLength": 25488,
+                "count": 6372
+              },
+              "index": {
+                "byteOffset": 101952,
+                "byteLength": 24408,
+                "count": 12204
+              }
+            }
+          },
+          "leaf": {
+            "material": "leaf",
+            "triangles": 4608,
+            "attributes": {
+              "position": {
+                "byteOffset": 126360,
+                "byteLength": 110592,
+                "count": 27648
+              },
+              "normal": {
+                "byteOffset": 236952,
+                "byteLength": 110592,
+                "count": 27648
+              },
+              "uv": {
+                "byteOffset": 347544,
+                "byteLength": 73728,
+                "count": 18432
+              },
+              "index": {
+                "byteOffset": 421272,
+                "byteLength": 27648,
+                "count": 13824
+              }
+            }
+          }
+        }
+      }
+    },
+    "aspen": {
+      "near": {
+        "root": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "normalizedHeight": 1,
+        "original": {
+          "height": 69.049072265625,
+          "width": 0.3721261629320251,
+          "depth": 0.4446987425970123
+        },
+        "triangles": 8358,
+        "parts": {
+          "bark": {
+            "material": "bark",
+            "triangles": 2886,
+            "attributes": {
+              "position": {
+                "byteOffset": 448920,
+                "byteLength": 27072,
+                "count": 6768
+              },
+              "normal": {
+                "byteOffset": 475992,
+                "byteLength": 27072,
+                "count": 6768
+              },
+              "uv": {
+                "byteOffset": 503064,
+                "byteLength": 18048,
+                "count": 4512
+              },
+              "index": {
+                "byteOffset": 521112,
+                "byteLength": 17316,
+                "count": 8658
+              }
+            }
+          },
+          "leaf": {
+            "material": "leaf",
+            "triangles": 5472,
+            "attributes": {
+              "position": {
+                "byteOffset": 538428,
+                "byteLength": 131328,
+                "count": 32832
+              },
+              "normal": {
+                "byteOffset": 669756,
+                "byteLength": 131328,
+                "count": 32832
+              },
+              "uv": {
+                "byteOffset": 801084,
+                "byteLength": 87552,
+                "count": 21888
+              },
+              "index": {
+                "byteOffset": 888636,
+                "byteLength": 32832,
+                "count": 16416
+              }
+            }
+          }
+        }
+      }
+    },
+    "maple": {
+      "near": {
+        "root": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "normalizedHeight": 1,
+        "original": {
+          "height": 72.11041259765625,
+          "width": 0.9504617497716802,
+          "depth": 1.076263514033943
+        },
+        "triangles": 10716,
+        "parts": {
+          "bark": {
+            "material": "bark",
+            "triangles": 3436,
+            "attributes": {
+              "position": {
+                "byteOffset": 921468,
+                "byteLength": 35808,
+                "count": 8952
+              },
+              "normal": {
+                "byteOffset": 957276,
+                "byteLength": 35808,
+                "count": 8952
+              },
+              "uv": {
+                "byteOffset": 993084,
+                "byteLength": 23872,
+                "count": 5968
+              },
+              "index": {
+                "byteOffset": 1016956,
+                "byteLength": 20616,
+                "count": 10308
+              }
+            }
+          },
+          "leaf": {
+            "material": "leaf",
+            "triangles": 7280,
+            "attributes": {
+              "position": {
+                "byteOffset": 1037572,
+                "byteLength": 174720,
+                "count": 43680
+              },
+              "normal": {
+                "byteOffset": 1212292,
+                "byteLength": 174720,
+                "count": 43680
+              },
+              "uv": {
+                "byteOffset": 1387012,
+                "byteLength": 116480,
+                "count": 29120
+              },
+              "index": {
+                "byteOffset": 1503492,
+                "byteLength": 43680,
+                "count": 21840
+              }
+            }
+          }
+        }
+      }
+    },
+    "spruce": {
+      "near": {
+        "root": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "normalizedHeight": 1,
+        "original": {
+          "height": 56.85068893432617,
+          "width": 0.7070640895595517,
+          "depth": 0.7190495755001303
+        },
+        "triangles": 9932,
+        "parts": {
+          "bark": {
+            "material": "bark",
+            "triangles": 3020,
+            "attributes": {
+              "position": {
+                "byteOffset": 1547172,
+                "byteLength": 26976,
+                "count": 6744
+              },
+              "normal": {
+                "byteOffset": 1574148,
+                "byteLength": 26976,
+                "count": 6744
+              },
+              "uv": {
+                "byteOffset": 1601124,
+                "byteLength": 17984,
+                "count": 4496
+              },
+              "index": {
+                "byteOffset": 1619108,
+                "byteLength": 18120,
+                "count": 9060
+              }
+            }
+          },
+          "leaf": {
+            "material": "leaf",
+            "triangles": 6912,
+            "attributes": {
+              "position": {
+                "byteOffset": 1637228,
+                "byteLength": 165888,
+                "count": 41472
+              },
+              "normal": {
+                "byteOffset": 1803116,
+                "byteLength": 165888,
+                "count": 41472
+              },
+              "uv": {
+                "byteOffset": 1969004,
+                "byteLength": 110592,
+                "count": 27648
+              },
+              "index": {
+                "byteOffset": 2079596,
+                "byteLength": 41472,
+                "count": 20736
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

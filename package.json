@@ -1,0 +1,23 @@
+{
+  "name": "slowroad",
+  "version": "1.0.0",
+  "description": "Open-world scenic driving — the journey, not the driving sim.",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "vite --port 5188 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --port 5188 --strictPort",
+    "progress": "node gauntlet/serve-progress.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@dgreenheck/ez-tree": "1.1.0",
+    "playwright": "^1.62.1",
+    "vite": "^8.2.2"
+  }
+}

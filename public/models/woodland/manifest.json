@@ -1,0 +1,168 @@
+{
+  "version": 1,
+  "format": "slowroad-understory-v1",
+  "generatedBy": "gauntlet/bake-understory.mjs",
+  "byteLength": 172540,
+  "templates": [
+    {
+      "name": "bush-1",
+      "growthForm": "woody",
+      "bark": {
+        "attributes": {
+          "position": {
+            "offset": 0,
+            "count": 934,
+            "itemSize": 3,
+            "type": "float32",
+            "normalized": false
+          },
+          "normal": {
+            "offset": 11208,
+            "count": 934,
+            "itemSize": 3,
+            "type": "float32",
+            "normalized": false
+          },
+          "uv": {
+            "offset": 22416,
+            "count": 934,
+            "itemSize": 2,
+            "type": "float32",
+            "normalized": false
+          }
+        },
+        "index": {
+          "offset": 29888,
+          "count": 3342,
+          "itemSize": 1,
+          "type": "uint16"
+        }
+      },
+      "leaf": {
+        "attributes": {
+          "position": {
+            "offset": 36572,
+            "count": 3200,
+            "itemSize": 3,
+            "type": "float32",
+            "normalized": false
+          },
+          "normal": {
+            "offset": 74972,
+            "count": 3200,
+            "itemSize": 3,
+            "type": "float32",
+            "normalized": false
+          },
+          "uv": {
+            "offset": 113372,
+            "count": 3200,
+            "itemSize": 2,
+            "type": "float32",
+            "normalized": false
+          }
+        },
+        "index": {
+          "offset": 138972,
+          "count": 4800,
+          "itemSize": 1,
+          "type": "uint16"
+        }
+      },
+      "barkTriangles": 1114,
+      "leafTriangles": 1600,
+      "bounds": {
+        "min": [
+          -0.9755966067314148,
+          -0.2987250089645386,
+          -0.9187108278274536
+        ],
+        "max": [
+          1.02440345287323,
+          1.5000001192092896,
+          0.8631439805030823
+        ]
+      }
+    },
+    {
+      "name": "bracken-1",
+      "growthForm": "fern",
+      "bark": {
+        "attributes": {
+          "position": {
+            "offset": 148572,
+            "count": 168,
+            "itemSize": 3,
+            "type": "float32",
+            "normalized": false
+          },
+          "normal": {
+            "offset": 150588,
+            "count": 168,
+            "itemSize": 3,
+            "type": "float32",
+            "normalized": false
+          },
+          "uv": {
+            "offset": 152604,
+            "count": 168,
+            "itemSize": 2,
+            "type": "float32",
+            "normalized": false
+          }
+        },
+        "index": {
+          "offset": 153948,
+          "count": 924,
+          "itemSize": 1,
+          "type": "uint16"
+        }
+      },
+      "leaf": {
+        "attributes": {
+          "position": {
+            "offset": 155796,
+            "count": 455,
+            "itemSize": 3,
+            "type": "float32",
+            "normalized": false
+          },
+          "normal": {
+            "offset": 161256,
+            "count": 455,
+            "itemSize": 3,
+            "type": "float32",
+            "normalized": false
+          },
+          "uv": {
+            "offset": 166716,
+            "count": 455,
+            "itemSize": 2,
+            "type": "float32",
+            "normalized": false
+          }
+        },
+        "index": {
+          "offset": 170356,
+          "count": 1092,
+          "itemSize": 1,
+          "type": "uint16"
+        }
+      },
+      "barkTriangles": 308,
+      "leafTriangles": 364,
+      "bounds": {
+        "min": [
+          -1.0360016822814941,
+          0,
+          -0.8520260453224182
+        ],
+        "max": [
+          0.9639982581138611,
+          1.5,
+          0.9593502283096313
+        ]
+      }
+    }
+  ]
+}

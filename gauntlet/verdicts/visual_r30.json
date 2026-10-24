@@ -1,0 +1,25 @@
+{
+ "piece": "visual",
+ "round": 30,
+ "winner": "bar",
+ "score": 24,
+ "blind_pick_correct": true,
+ "gap": "The build remains visibly low-poly and game-like against the official photographic bar: materials, vegetation integration, road surface detail, and atmospheric depth all need a substantial realism pass.",
+ "secondary_gaps": [
+  "Terrain and distant ridges are flatter and less layered than the bar, especially in the wide vista.",
+  "Vegetation uses conspicuous billboard/cluster shapes with hard density falloff and weak ground contact.",
+  "Road markings, guardrails, and lighting lack the bar's fine-grained surface variation and contact shadows.",
+  "Cockpit geometry and dashboard framing are serviceable but materially less detailed and less photoreal.",
+  "Winter palette reads as a bright stylized snow pass rather than the bar's snow-covered, fog-layered landscape."
+ ],
+ "shots": [
+  {"id":"chase_summer_noon","our_shot":"gauntlet/shots/visual_r30_chase_summer_noon.png","bar_shot":"refs/slowroads/official/sr_01.jpg","ab_image":"gauntlet/shots/visual_r30_ab_chase_summer_noon.png","quality_winner":"B","identity_guess":"B","identity":"bar","blind_pick_correct":true,"note":"B has richer photographic terrain, road, and foliage detail; A is visibly flat low-poly."},
+  {"id":"chase_golden","our_shot":"gauntlet/shots/visual_r30_chase_golden.png","bar_shot":"refs/slowroads/official/sr_04.jpg","ab_image":"gauntlet/shots/visual_r30_ab_chase_golden.png","quality_winner":"A","identity_guess":"A","identity":"bar","blind_pick_correct":true,"note":"A has convincing warm exposure, road texture, car detail, and long-shadow integration; B is washed and sparse."},
+  {"id":"chase_night","our_shot":"gauntlet/shots/visual_r30_chase_night.png","bar_shot":"refs/slowroads/official/sr_20.jpg","ab_image":"gauntlet/shots/visual_r30_ab_chase_night.png","quality_winner":"B","identity_guess":"B","identity":"bar","blind_pick_correct":true,"note":"B has readable headlight illumination, road edge, and mountain silhouette; A is very dark with weak light response."},
+  {"id":"cockpit_overcast","our_shot":"gauntlet/shots/visual_r30_cockpit_overcast.png","bar_shot":"refs/slowroads/official/sr_11.jpg","ab_image":"gauntlet/shots/visual_r30_ab_cockpit_overcast.png","quality_winner":"B","identity_guess":"B","identity":"bar","blind_pick_correct":true,"note":"B has detailed cockpit controls, mirror, guardrail, and low-contrast overcast exposure; A has coarse interior geometry and foliage."},
+  {"id":"season_winter","our_shot":"gauntlet/shots/visual_r30_season_winter.png","bar_shot":"refs/slowroads/official/sr_13.jpg","ab_image":"gauntlet/shots/visual_r30_ab_season_winter.png","quality_winner":"A","identity_guess":"A","identity":"bar","blind_pick_correct":true,"note":"A (sr13) has snow-covered hills, fog layering, and natural road/snow blending; B is a bright flat snow overlay."},
+  {"id":"vista_wide","our_shot":"gauntlet/shots/visual_r30_vista_wide.png","bar_shot":"refs/slowroads/official/sr_03.jpg","ab_image":"gauntlet/shots/visual_r30_ab_vista_wide.png","quality_winner":"B","identity_guess":"B","identity":"bar","blind_pick_correct":true,"note":"B has stronger elevated composition, ridge depth, shoreline/terrain materials, and natural vegetation scale."},
+  {"id":"cockpit_noon","our_shot":"gauntlet/shots/visual_r30_cockpit_noon.png","bar_shot":"refs/slowroads/official/sr_11.jpg","ab_image":"gauntlet/shots/visual_r30_ab_cockpit_noon.png","quality_winner":"A","identity_guess":"A","identity":"bar","blind_pick_correct":true,"note":"A has realistic road markings, mirror, dashboard material, and windshield framing; B remains stylized and low-detail."}
+ ],
+ "verdict_text": "Independent fresh-headless capture at 1920x1080. All seven anonymous pairs were judged for visual quality before the A/B key was opened. The official bar won every pair; the largest gap is the rendering/material realism and integrated atmospheric depth, not a single isolated prop. winter is compared specifically against official sr_13.jpg."
+}

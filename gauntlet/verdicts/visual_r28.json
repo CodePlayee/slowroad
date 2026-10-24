@@ -1,0 +1,112 @@
+{
+ "round": 28,
+ "piece": "visual",
+ "agent": "independent_visual_r28",
+ "created": "2026-09-12T15:24:00+08:00",
+ "capture": {
+  "browser": "visual_r28",
+  "port": 9360,
+  "resolution": "1920x1080",
+  "frozen_params": "gauntlet/shots.json",
+  "shots_dir": "gauntlet/shots/visual_r28",
+  "official_refs": "refs/slowroads/official",
+  "winter_bar": "refs/slowroads/official/sr_13.jpg"
+ },
+ "method": {
+  "comparison": "blind randomized A/B; side mapping read only after visual call",
+  "canonical_shots": 7,
+  "quality_decisions": "bar on every shot",
+  "identity_decisions": "7/7 correct"
+ },
+ "winner": "bar",
+ "score": {
+  "ours": 43,
+  "bar": 92,
+  "scale": "0-100 visual match to the official reference set"
+ },
+ "shots": [
+  {
+   "id": "chase_summer_noon",
+   "ours": "gauntlet/shots/visual_r28/chase_summer_noon.png",
+   "bar": "refs/slowroads/official/sr_01.jpg",
+   "ab": "gauntlet/shots/visual_r28/ab_chase_summer_noon.png",
+   "mapping": "A=bar, B=ours",
+   "winner": "bar",
+   "note": "Official frame has continuous rolling hills, dense layered vegetation, natural road edge and grounded contact; ours has card foliage and broad flat shoulder planes."
+  },
+  {
+   "id": "chase_golden",
+   "ours": "gauntlet/shots/visual_r28/chase_golden.png",
+   "bar": "refs/slowroads/official/sr_04.jpg",
+   "ab": "gauntlet/shots/visual_r28/ab_chase_golden.png",
+   "mapping": "A=bar, B=ours",
+   "winner": "bar",
+   "note": "Official golden-hour exposure has coherent warm shadows and material texture; ours is washed around the sun with hard verge polygons and sparse repeated clumps."
+  },
+  {
+   "id": "chase_night",
+   "ours": "gauntlet/shots/visual_r28/chase_night.png",
+   "bar": "refs/slowroads/official/sr_20.jpg",
+   "ab": "gauntlet/shots/visual_r28/ab_chase_night.png",
+   "mapping": "A=bar, B=ours",
+   "winner": "bar",
+   "note": "Official night scene has readable headlight spill, road reflectance and layered dark silhouettes; ours is flatter and loses terrain/material detail in the shadows."
+  },
+  {
+   "id": "cockpit_noon",
+   "ours": "gauntlet/shots/visual_r28/cockpit_noon.png",
+   "bar": "refs/slowroads/official/sr_11.jpg",
+   "ab": "gauntlet/shots/visual_r28/ab_cockpit_noon.png",
+   "mapping": "A=bar, B=ours",
+   "winner": "bar",
+   "note": "Official cockpit has believable road/shoulder and restrained dashboard framing; ours has an oversized dark dash and low-poly terrain ahead."
+  },
+  {
+   "id": "cockpit_overcast",
+   "ours": "gauntlet/shots/visual_r28/cockpit_overcast.png",
+   "bar": "refs/slowroads/official/sr_11.jpg",
+   "ab": "gauntlet/shots/visual_r28/ab_cockpit_overcast.png",
+   "mapping": "A=bar, B=ours",
+   "winner": "bar",
+   "note": "Official low-contrast view keeps natural hillside detail; ours is dominated by the cockpit shell and stamped autumn foliage on flat terrain."
+  },
+  {
+   "id": "vista_wide",
+   "ours": "gauntlet/shots/visual_r28/vista_wide.png",
+   "bar": "refs/slowroads/official/sr_03.jpg",
+   "ab": "gauntlet/shots/visual_r28/ab_vista_wide.png",
+   "mapping": "A=ours, B=bar",
+   "winner": "bar",
+   "note": "Official elevated frame provides coherent lake, slope, road and tree depth; ours reads as a flat procedural field with visible polygon/card transitions."
+  },
+  {
+   "id": "season_winter",
+   "ours": "gauntlet/shots/visual_r28/season_winter.png",
+   "bar": "refs/slowroads/official/sr_13.jpg",
+   "ab": "gauntlet/shots/visual_r28/ab_season_winter.png",
+   "mapping": "A=bar, B=ours",
+   "winner": "bar",
+   "note": "Using terrestrial sr_13, official snow scene has soft valley layering and natural snow/road contact; ours achieves the palette but retains flat snow planes and billboard-like bare trees."
+  }
+ ],
+ "largest_gap": "Continuous grounded landscape integration: replace hard-edged verge/snow polygons and repeated card-like foliage with blended near/mid/far terrain materials, contact shading, and coherent atmospheric depth. This gap persists across summer, golden, night, cockpit, vista, and winter views.",
+ "secondary_gaps": [
+  "Cockpit camera framing and dashboard proportions are too dominant compared with the reference driving view.",
+  "Golden-hour and night lighting need stronger material response, shadows, and headlight/road interaction.",
+  "Winter palette is present, but snow coverage and distant valley layering remain procedural rather than continuous."
+ ],
+ "browser_cleanup": {
+  "stopped": [
+   "visual_r28",
+   "visual_r28_ab_chase_summer_noon",
+   "visual_r28_ab_chase_golden",
+   "visual_r28_ab_chase_dawn",
+   "visual_r28_ab_chase_night",
+   "visual_r28_ab_cockpit_noon",
+   "visual_r28_ab_cockpit_overcast",
+   "visual_r28_ab_vista_wide",
+   "visual_r28_ab_winter"
+  ],
+  "ports_verified_clean": [9360, 9370]
+ }
+}

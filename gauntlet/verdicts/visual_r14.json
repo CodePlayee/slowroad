@@ -1,0 +1,25 @@
+{
+  "piece": "visual",
+  "round": 14,
+  "winner": "bar",
+  "score": 47,
+  "blind_pick_correct": {"correct": 7, "total": 7, "rate": 1},
+  "gap": "Give the world continuous grounded landscape depth: smooth terrain materials and contour silhouettes with believable near/mid/far separation. Faceted card foliage and broad polygon verge/shoulder planes remain the dominant mismatch in every view.",
+  "secondary_gaps": [
+    "Golden hour remains pale and low-contrast, missing the bar's saturated warm fields and coherent long shadows.",
+    "Night has stars and a visible road, but the headlight pool and blue ambient terrain separation are much weaker than the bar.",
+    "Winter communicates a white palette yet leaves exposed shoulder polygons and patchy ground instead of continuous snow relief.",
+    "Cockpit framing is recognizable but the oversized dark dashboard and simplified interior lack the bar's mirror/A-pillar realism.",
+    "The elevated vista has a readable road and bridge, but no water-backed composition or layered atmospheric ridges comparable to the bar."
+  ],
+  "evidence": [
+    {"id":"chase_summer_noon","our_shot":"gauntlet/shots/visual_r14/chase_summer_noon.png","bar_shot":"refs/slowroads/official/sr_01.jpg","ab_image":"gauntlet/shots/visual_r14/ab_chase_summer_noon.png","blind_pick":"A","reveal":"A=bar","note":"Bar's broad lake-backed hills, continuous grass and authored car read as a finished landscape. Ours has a legible road and dense clumps but faceted crowns, repeated cards and conspicuous flat pale verge."},
+    {"id":"chase_golden","our_shot":"gauntlet/shots/visual_r14/chase_golden.png","bar_shot":"refs/slowroads/official/sr_04.jpg","ab_image":"gauntlet/shots/visual_r14/ab_chase_golden.png","blind_pick":"B","reveal":"B=bar","note":"Bar wins with saturated amber fields, controlled low sun and long shadows. Ours is washed toward the sun, with gray-green ground and weak shadow structure despite a readable chase car."},
+    {"id":"chase_night","our_shot":"gauntlet/shots/visual_r14/chase_night.png","bar_shot":"refs/slowroads/official/sr_20.jpg","ab_image":"gauntlet/shots/visual_r14/ab_chase_night.png","blind_pick":"A","reveal":"A=bar","note":"Ours supplies stars, tail lights and a visible ribbon, but most terrain collapses into dark low-poly silhouettes. Bar retains shoreline/mountain context, a blue night ramp and a strong headlight cone."},
+    {"id":"cockpit_overcast","our_shot":"gauntlet/shots/visual_r14/cockpit_overcast.png","bar_shot":"refs/slowroads/official/sr_11.jpg","ab_image":"gauntlet/shots/visual_r14/ab_cockpit_overcast.png","blind_pick":"A","reveal":"A=bar","note":"Bar has a credible mirror, A-pillar, road and hillside under flat cloud light. Ours establishes a cockpit, but the dark slab dashboard fills the lower frame and autumn vegetation is visibly faceted."},
+    {"id":"season_winter","our_shot":"gauntlet/shots/visual_r14/season_winter.png","bar_shot":"refs/slowroads/official/sr_19.jpg","ab_image":"gauntlet/shots/visual_r14/ab_season_winter.png","blind_pick":"A","reveal":"A=bar","note":"Bar is a coherent snow world with snow-shaped relief. Ours changes trees and ground toward white but leaves exposed polygon shoulder patches and a normal dark road."},
+    {"id":"vista_wide","our_shot":"gauntlet/shots/visual_r14/vista_wide.png","bar_shot":"refs/slowroads/official/sr_03.jpg","ab_image":"gauntlet/shots/visual_r14/ab_vista_wide.png","blind_pick":"B","reveal":"B=bar","note":"Bar's elevated coastal frame has smooth cut slope, water and multiple atmospheric ridge layers. Ours has a readable elevated road/bridge but remains a flat green patchwork with no water or comparable depth."},
+    {"id":"cockpit_noon","our_shot":"gauntlet/shots/visual_r14/cockpit_noon.png","bar_shot":"refs/slowroads/official/sr_11.jpg","ab_image":"gauntlet/shots/visual_r14/ab_cockpit_noon.png","blind_pick":"B","reveal":"B=bar","note":"Bar's driver view is restrained and photographic with mirror, A-pillar and road cut. Ours has a centered road and detailed wheel, but noisy dark interior, oversized dash and low-poly verge are unmistakable."}
+  ],
+  "verdict_text": "Independent round-14 seven-shot blind review: the official bar wins all seven comparisons and the randomized side call is correct 7/7. Ground-material blending and contact shading are present, but the global read remains procedural low-poly scenery: faceted foliage and hard polygon verge planes erase the continuous landform depth of the reference."
+}

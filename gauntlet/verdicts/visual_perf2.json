@@ -1,0 +1,29 @@
+{
+ "piece": "visual_perf2",
+ "round": 1,
+ "winner": "bar",
+ "score": 42,
+ "blind_pick_correct": 7,
+ "gap": "Card-clump density is restored, but the scene still reads as low-poly billboard foliage over flat terrain: the reference has continuous contour-following landforms, natural materials, and multi-distance atmospheric depth.",
+ "visual_regression": {
+  "obvious": false,
+  "summary": "The clump patch visibly fills the near and middle ground instead of leaving the prior broad bare planes. No new blank regions, missing residency, or obvious camera/asset break appeared; repeated card silhouettes remain a quality gap rather than a fresh regression."
+ },
+ "secondary_gaps": [
+  "Summer chase and cockpit views remain dominated by angular card foliage and flat pale verge/shoulder planes rather than grounded grass materials.",
+  "Golden hour is washed and low contrast versus the bar's warm cured fields and long coherent shadows.",
+  "Night has stars and a readable road but weak headlight illumination and limited blue ambient terrain separation.",
+  "Winter has the intended palette but exposed shoulder and tint-like ground treatment instead of continuous snow-shaped landforms.",
+  "Vista-wide has a plausible elevated road, but no water-backed ridge layers; repeated clumps and a hard bridge/wall edge dominate."
+ ],
+ "evidence": [
+  {"our_shot":"gauntlet/shots/visual_perf2/chase_summer_noon.png","bar_shot":"refs/slowroads/official/sr_01.jpg","ab_image":"gauntlet/shots/visual_perf2/ab_chase_summer_noon.png","blind_call":"B","call":"bar","note":"Clump density now fills the verge, but the bar has continuous natural grass and broad layered hills while ours retains card-like clumps and flat shoulder planes."},
+  {"our_shot":"gauntlet/shots/visual_perf2/chase_golden.png","bar_shot":"refs/slowroads/official/sr_04.jpg","ab_image":"gauntlet/shots/visual_perf2/ab_chase_golden.png","blind_call":"B","call":"bar","note":"Bar has warm golden exposure, dark land contrast, and long shadows; ours remains pale and low-contrast despite fuller clumps."},
+  {"our_shot":"gauntlet/shots/visual_perf2/chase_night.png","bar_shot":"refs/slowroads/official/sr_20.jpg","ab_image":"gauntlet/shots/visual_perf2/ab_chase_night.png","blind_call":"A","call":"bar","note":"Bar supplies stronger blue night value separation and a convincing headlight cone; ours is darker with weak terrain illumination."},
+  {"our_shot":"gauntlet/shots/visual_perf2/cockpit_overcast.png","bar_shot":"refs/slowroads/official/sr_11.jpg","ab_image":"gauntlet/shots/visual_perf2/ab_cockpit_overcast.png","blind_call":"A","call":"bar","note":"Bar's windshield, mirror, road, and hillside read photographically; ours has an oversized dark dashboard and faceted autumn cards."},
+  {"our_shot":"gauntlet/shots/visual_perf2/season_winter.png","bar_shot":"refs/slowroads/official/sr_19.jpg","ab_image":"gauntlet/shots/visual_perf2/ab_season_winter.png","blind_call":"A","call":"bar","note":"Bar is a continuous snow world with snow-shaped ridges; ours has the winter palette but exposed shoulder and card-like shrubs."},
+  {"our_shot":"gauntlet/shots/visual_perf2/vista_wide.png","bar_shot":"refs/slowroads/official/sr_03.jpg","ab_image":"gauntlet/shots/visual_perf2/ab_vista_wide.png","blind_call":"B","call":"bar","note":"Bar has water, contour-following road, and atmospheric ridge layers; ours has repeated clumps, flat greens, and a dominant bridge/wall edge."},
+  {"our_shot":"gauntlet/shots/visual_perf2/cockpit_noon.png","bar_shot":"refs/slowroads/official/sr_11.jpg","ab_image":"gauntlet/shots/visual_perf2/ab_cockpit_noon.png","blind_call":"A","call":"bar","note":"Bar has a cleaner driver aperture and natural road cut; ours is recognizable with fuller vegetation but noisy dashboard and low-poly cards."}
+ ],
+ "verdict_text": "Fresh clump-patch renders are fully resident and nonblank. The patch removes the prior sparse-density regression, but the official bar still wins all seven blind comparisons. The largest remaining gap is natural landscape depth and material fidelity: repeated card clumps over flat terrain do not match the bar's layered, grounded world."
+}

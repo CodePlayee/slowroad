@@ -1,0 +1,75 @@
+{
+  "judge": "a",
+  "pairs": [
+    {
+      "id": "p01",
+      "winner": "A",
+      "material_gap": true,
+      "confidence": 0.96,
+      "reason": "A has denser, more natural ground cover; B's vegetation reads as sparse flat patches."
+    },
+    {
+      "id": "p02",
+      "winner": "A",
+      "material_gap": false,
+      "confidence": 0.7,
+      "reason": "A has slightly richer tree and snow texture, but both winter scenes are similarly coherent."
+    },
+    {
+      "id": "p03",
+      "winner": "A",
+      "material_gap": true,
+      "confidence": 0.86,
+      "reason": "A's hillsides read as continuous terrain, while B is dominated by repetitive grass clumps."
+    },
+    {
+      "id": "p04",
+      "winner": "A",
+      "material_gap": true,
+      "confidence": 0.93,
+      "reason": "A provides a much richer, layered landscape with a convincing winding road and distant depth."
+    },
+    {
+      "id": "p05",
+      "winner": "A",
+      "material_gap": true,
+      "confidence": 0.99,
+      "reason": "A has cohesive sunset lighting and detailed road vegetation; B is washed out with crushed shadows."
+    },
+    {
+      "id": "p06",
+      "winner": "A",
+      "material_gap": true,
+      "confidence": 0.85,
+      "reason": "A preserves readable nighttime terrain and roadside detail, whereas B loses most mountain detail to darkness."
+    },
+    {
+      "id": "p07",
+      "winner": "B",
+      "material_gap": true,
+      "confidence": 0.8,
+      "reason": "B has a more polished road, guardrail, hillside, and dashboard presentation with stronger spatial detail."
+    },
+    {
+      "id": "p08",
+      "winner": "A",
+      "material_gap": true,
+      "confidence": 0.95,
+      "reason": "A's snowy mountain road has stronger atmospheric depth and a more convincing winter setting."
+    },
+    {
+      "id": "p09",
+      "winner": "B",
+      "material_gap": true,
+      "confidence": 0.99,
+      "reason": "B offers a highly legible lakeside road with natural vegetation and convincing mountain scale; A is dark and geometrically awkward."
+    },
+    {
+      "id": "p10",
+      "winner": "B",
+      "material_gap": false,
+      "confidence": 0.65,
+      "reason": "B's bright exterior and textured cockpit edge out A's flatter gray truck interior, though both are coherent."
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "schema": "visual-verdict.v2",
+  "agent": "independent_visual_r33",
+  "round": 33,
+  "status": "judging",
+  "capture": {
+    "browser": "critic-r33",
+    "port": 9361,
+    "resolution": "1920x1080",
+    "shots_dir": "gauntlet/rounds/33-raw/shots",
+    "anonymous_dir": "gauntlet/rounds/33-raw/anon",
+    "random_seed": 311556,
+    "winter_bar": "refs/slowroads/official/sr_13.jpg",
+    "quality_before_identity": true
+  },
+  "summary": {
+    "quality_winner": "bar",
+    "quality_score": "bar 7/7",
+    "identity_guesses": "7/7 official",
+    "gate": "not_passed_single_judge",
+    "largest_gap": "Continuous grounded landscape integration remains behind the official bar: hard-edged shoulder/terrain planes and card-like vegetation reduce material realism and near-to-far depth. Winter still reads as a bright white overlay with blue sky rather than a foggy, snow-shaped world."
+  },
+  "shots": [
+    {
+      "id": "chase_summer_noon",
+      "A_or_B": {"quality_winner": "A", "identity_guess": "A=official"},
+      "dimension_notes": "Official frame has photographic grass/forest texture, richer layered ridges, and a more natural road/verge blend. Build remains readable with a continuous road and dense greenery, but shoulder planes and repeated low-poly foliage are conspicuous; camera/framing differs."
+    },
+    {
+      "id": "chase_golden",
+      "A_or_B": {"quality_winner": "A", "identity_guess": "A=official"},
+      "dimension_notes": "Official has warm exposure, detailed roadside grasses/stonework, and long-shadow integration. Build conveys a sunset but is washed, with sparse/flat material patches and coarse foliage silhouettes."
+    },
+    {
+      "id": "chase_night",
+      "A_or_B": {"quality_winner": "A", "identity_guess": "A=official"},
+      "dimension_notes": "Official headlight beam shapes the road and keeps mountain/shore depth legible. Build has stars and a readable car but most terrain falls into near-black low-poly masses; lighting response and distant depth are substantially weaker."
+    },
+    {
+      "id": "cockpit_overcast",
+      "A_or_B": {"quality_winner": "B", "identity_guess": "B=official"},
+      "dimension_notes": "Official cockpit has a detailed A-pillar/mirror, realistic road markings, and subdued overcast landscape. Build cockpit is coherent and textured but toy-like/coarse, with flat autumn vegetation and weaker atmosphere; scene/biome differs, so exact composition and season are not comparable."
+    },
+    {
+      "id": "season_winter",
+      "A_or_B": {"quality_winner": "A", "identity_guess": "A=official"},
+      "dimension_notes": "Official terrestrial sr_13 has sculpted snow relief, falling snow, fog layers, and a snow-blended road/guardrail. Build communicates winter and keeps the road readable, but has bright blue sky, hard white shoulder planes, sparse card-like trees, and no equivalent snowfall/fog; camera/framing differs."
+    },
+    {
+      "id": "vista_wide",
+      "A_or_B": {"quality_winner": "B", "identity_guess": "B=official"},
+      "dimension_notes": "Official has a strong elevated landform composition, water, layered mountain atmosphere, and natural vegetation scale. Build's road continuity is clear, but the view is dominated by flat green planes, repeated foliage cards, and shallow ridge depth; biome/composition differs."
+    },
+    {
+      "id": "cockpit_noon",
+      "A_or_B": {"quality_winner": "A", "identity_guess": "A=official"},
+      "dimension_notes": "Official cockpit provides an A-pillar and mirror, physically grounded road/guardrail, and detailed instruments. Build's custom cockpit is stable and readable, but its broad dashboard geometry, absent mirror/A-pillar, and low-poly verge/trees remain visibly behind; camera and vehicle context differ."
+    }
+  ],
+  "evidence": {
+    "fresh_capture_logs": "gauntlet/rounds/33-raw/logs",
+    "browser_cleanup": "critic-r33 down: remaining=0"
+  }
+}

@@ -1,0 +1,25 @@
+{
+ "piece": "visual",
+ "round": 6,
+ "winner": "bar",
+ "score": 42,
+ "blind_pick_correct": 7,
+ "gap": "Replace the close low-poly hedge walls with continuous rolling terrain, readable multi-distance ridges, and distance haze so every camera has the layered landscape depth of the reference.",
+ "secondary_gaps": [
+  "Road shading is a flat gray ribbon with a conspicuous tan shoulder strip and sparse markings instead of a contour-pinned, material-rich surface.",
+  "Golden-hour lighting does not carry warm land color or long coherent shadows; night has stars but almost no readable headlight cone or blue ambient fill.",
+  "Winter is mostly a grayscale vegetation filter with exposed bare verge rather than continuous snow coverage and snow-shaped terrain.",
+  "Cockpit geometry occupies too much of the lower frame, with a dark plastic dashboard and limited mirror/interior detail compared with the reference.",
+  "Vegetation repeats as billboard-like spiky clumps and hard silhouettes, especially in near foreground and vista-wide framing."
+ ],
+ "evidence": [
+  {"our_shot":"gauntlet/shots/visual_r6/chase_summer_noon.png","bar_shot":"refs/slowroads/official/sr_01.jpg","ab_image":"gauntlet/shots/visual_r6/ab_chase_summer_noon.png","note":"Blind call B (bar), correct. Ours has a straight enclosed road and dense hedge wall; bar opens into five rolling green depth layers with a lake and contour-following ribbon."},
+  {"our_shot":"gauntlet/shots/visual_r6/chase_golden.png","bar_shot":"refs/slowroads/official/sr_04.jpg","ab_image":"gauntlet/shots/visual_r6/ab_chase_golden.png","note":"Blind call B (bar), correct. Ours has a washed pale sunset and white car; bar has convincing low warm sun, cured gold grass, dark land exposure, and long shadows."},
+  {"our_shot":"gauntlet/shots/visual_r6/chase_night.png","bar_shot":"refs/slowroads/official/sr_20.jpg","ab_image":"gauntlet/shots/visual_r6/ab_chase_night.png","note":"Blind call A (bar), correct. Ours reads as night with stars but loses terrain and headlight illumination; bar supplies a blue night value ramp, shoreline, sign, and hard headlight cone."},
+  {"our_shot":"gauntlet/shots/visual_r6/cockpit_overcast.png","bar_shot":"refs/slowroads/official/sr_11.jpg","ab_image":"gauntlet/shots/visual_r6/ab_cockpit_overcast.png","note":"Blind call A (bar), correct. Ours does show an autumn overcast cockpit, but the lower cabin is a dark oversized slab and vegetation is faceted; bar has credible windshield, mirror, road, and hillside detail."},
+  {"our_shot":"gauntlet/shots/visual_r6/season_winter.png","bar_shot":"refs/slowroads/official/sr_19.jpg","ab_image":"gauntlet/shots/visual_r6/ab_season_winter.png","note":"Blind call A (bar), correct. Ours applies pale foliage and ground tint but leaves a broad bare shoulder and blue summer sky; bar is an unbroken snow world with snow-shaped ridges."},
+  {"our_shot":"gauntlet/shots/visual_r6/vista_wide.png","bar_shot":"refs/slowroads/official/sr_03.jpg","ab_image":"gauntlet/shots/visual_r6/ab_vista_wide.png","note":"Blind call A (bar), correct. Ours has a plausible high camera but repetitive flat greens and a bridge-like wall dominate; bar's cut/fill road, water, and five atmospheric ridge layers read immediately."},
+  {"our_shot":"gauntlet/shots/visual_r6/cockpit_noon.png","bar_shot":"refs/slowroads/official/sr_11.jpg","ab_image":"gauntlet/shots/visual_r6/ab_cockpit_noon.png","note":"Blind call B (bar), correct. Ours has the right cockpit idea and road alignment, but dashboard materials are noisy/dark and the near vegetation is low-poly; bar has a cleaner driver aperture, mirror, and natural road cut."}
+ ],
+ "verdict_text": "The current pass is recognizable and technically complete, but the bar wins all seven blind comparisons. The single recurring failure is landscape depth: near billboard-like vegetation and flat shading hide the rolling landform and atmospheric layering that make Slow Roads read as a place."
+}

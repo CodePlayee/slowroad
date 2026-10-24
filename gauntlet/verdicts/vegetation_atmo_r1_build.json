@@ -1,0 +1,21 @@
+{
+  "piece": "vegetation_atmosphere",
+  "round": 1,
+  "status": "built",
+  "changes": [
+    "Enabled WebGL2 alpha-to-coverage for foliage and grass cutouts to reduce billboard edge aliasing.",
+    "Reduced grass/shrub overdraw and softened per-instance value jitter to remove repeated hard bands while retaining layered forest edges.",
+    "Lowered golden-hour key and sun-disc energy to preserve road and vegetation detail.",
+    "Raised moonlit hemisphere and ambient fill, with a night-only multiplier, so terrain and foliage remain readable without lifting the night sky."
+  ],
+  "verification": {
+    "build": "npm run build",
+    "build_result": "pass",
+    "headless_shots": [
+      {"file": "gauntlet/shots/visual_r1b_golden.png", "query": "seed=7&t=18.4&season=summer&weather=clear&cam=chase&km=9.4", "residency_pending": 0},
+      {"file": "gauntlet/shots/visual_r1b_night2.png", "query": "seed=7&t=22.5&season=summer&weather=clear&cam=chase&km=7.1", "residency_pending": 0}
+      ,{"file": "gauntlet/shots/visual_r1b_winter2.png", "query": "seed=7&t=13&season=winter&weather=clear&cam=chase&km=6", "residency_pending": 0}
+    ]
+  },
+  "notes": "Golden frame retains a warm readable road and layered verge; night frame now shows road, vehicle, tree silhouettes and grass detail rather than a crushed black field."
+}

@@ -1,0 +1,87 @@
+{
+  "piece": "visual",
+  "round": 22,
+  "winner": "bar",
+  "score": 45,
+  "blind_pick_correct": "7/7",
+  "gap": "Natural terrain and vegetation integration: the shoulder/ground is a broad flat color field interrupted by oversized repeated grass and shrub clumps with hard polygon edges, so near and mid-ground coverage reads as stamps instead of one continuous believable surface.",
+  "secondary_gaps": [
+    "Foliage is strongly faceted and low-detail at large scale, with harsh dark undersides and repeated tree silhouettes.",
+    "Night lighting is underexposed and lacks the reference's readable headlight pool / layered contrast; golden light has weaker warm ground response.",
+    "Cockpit framing gives the dashboard too much area in the noon shot and is less consistently composed than the reference's wheel, pillar, mirror and road balance.",
+    "Winter comparison is semantically mismatched: the official bar is a lunar/night road scene rather than a terrestrial winter palette, so this shot is judged on rendering craft, not season identity."
+  ],
+  "evidence": [
+    {
+      "shot": "chase_summer_noon",
+      "preferred": "B",
+      "key": {
+        "A": "ours",
+        "B": "bar"
+      },
+      "winner": "bar",
+      "note": "Bar has continuous grass texture, coherent forest masses and stronger ridge depth. Ours exposes large bare shoulder patches and hard-edged clump stamps."
+    },
+    {
+      "shot": "chase_golden",
+      "preferred": "A",
+      "key": {
+        "A": "bar",
+        "B": "ours"
+      },
+      "winner": "bar",
+      "note": "Bar's warm low sun carries through road and verge with detailed shadowing; ours is pale/flat with a broad soft car shadow and weaker golden ground response."
+    },
+    {
+      "shot": "chase_night",
+      "preferred": "A",
+      "key": {
+        "A": "bar",
+        "B": "ours"
+      },
+      "winner": "bar",
+      "note": "Bar has a legible headlight pool, layered silhouette and road reflections; ours is heavily underexposed with weak beam definition and coarse vegetation."
+    },
+    {
+      "shot": "cockpit_overcast",
+      "preferred": "B",
+      "key": {
+        "A": "ours",
+        "B": "bar"
+      },
+      "winner": "bar",
+      "note": "Bar composes pillar, mirror, wheel and road naturally under overcast light. Ours is dashboard-heavy with repetitive foliage and flatter terrain."
+    },
+    {
+      "shot": "season_winter",
+      "preferred": "B",
+      "key": {
+        "A": "ours",
+        "B": "bar"
+      },
+      "winner": "bar",
+      "note": "Bar has much richer surface detail and contact grounding. The official image is lunar/night rather than winter, so no semantic season credit is assigned."
+    },
+    {
+      "shot": "vista_wide",
+      "preferred": "A",
+      "key": {
+        "A": "bar",
+        "B": "ours"
+      },
+      "winner": "bar",
+      "note": "Bar's coast, hills and vegetation form connected layered landforms. Ours has sparse stamp-like ground cover and a bridge corridor that dominates the wide frame."
+    },
+    {
+      "shot": "cockpit_noon",
+      "preferred": "A",
+      "key": {
+        "A": "bar",
+        "B": "ours"
+      },
+      "winner": "bar",
+      "note": "Bar has a clear road corridor and continuous verge detail. Ours has a large dashboard and large bare gaps between vegetation clumps."
+    }
+  ],
+  "verdict_text": "Blind side-by-side evaluation favored the official bar in all seven canonical shots (7/7). The build is readable and functional, but its low-poly foliage and discontinuous, flat terrain/shoulder treatment remain visibly behind the reference. The single largest gap is continuous natural ground/vegetation integration; improve that before secondary lighting or cockpit polish."
+}

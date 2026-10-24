@@ -1,0 +1,32 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>bench</title></head>
+<body><pre id="out">running…</pre>
+<script type="module">
+import { Heightfield } from '/src/terrain/heightfield.js';
+import { World } from '/src/world/world.js';
+
+const log = [];
+const mark = (label, fn) => { const t = performance.now(); const r = fn(); const ms = performance.now() - t; log.push([label, Math.round(ms * 100) / 100]); return r; };
+
+const hf = new Heightfield(12345);
+mark('natural x1000', () => { let s = 0; for (let i = 0; i < 1000; i++) s += hf.natural(i * 7.3, i * 3.1); return s; });
+mark('ground x1000', () => { let s = 0; for (let i = 0; i < 1000; i++) s += hf.ground(i * 7.3, i * 3.1); return s; });
+mark('river x1000', () => { let s = 0; for (let i = 0; i < 1000; i++) s += hf.river(i * 7.3, i * 3.1).dist; return s; });
+
+let world;
+mark('world+route build', () => { world = new World(7); world.build(); });
+mark('world.ground x1000', () => { let s = 0; for (let i = 0; i < 1000; i++) s += world.ground(i * 1.1, i * 0.7); return s; });
+
+const rt = world.route;
+window.__bench = {
+  timings: log,
+  routeSamples: rt.n,
+  routeLengthKm: Math.round(rt.length / 100) / 10,
+  bridges: rt.bridges.length,
+  firstBridges: rt.bridges.slice(0, 5).map(b => ({ km: Math.round(b.km * 100) / 100, W: Math.round(b.W), L: Math.round(b.L), spans: b.nSpans, deck: Math.round(b.deckDepth * 100) / 100 })),
+  y0: Math.round(rt.Y[0]), ymin: Math.round(Math.min(...rt.Y)), ymax: Math.round(Math.max(...rt.Y)),
+  maxGrade: Math.round(Math.max(...Array.from(rt.GRADE).map(Math.abs)) * 1000) / 10,
+};
+document.getElementById('out').textContent = JSON.stringify(window.__bench, null, 1);
+</script>
+</body></html>

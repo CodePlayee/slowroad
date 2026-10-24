@@ -1,0 +1,290 @@
+[
+  {
+    "file": "girder06.jpg",
+    "type": "concrete girder, 3 span",
+    "view": "side elevation",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Bridge_over_a_river_near_Radium,_Colorado.jpg",
+    "license": "CC BY 2.0",
+    "author": "Steve Wilson",
+    "notes": "PRIMARY REFERENCE. Full side elevation of the exact archetype we must build: 3-span concrete girder, 2 lanes, open steel rail, both piers standing in the water, abutments buried in willow-covered banks, hillside behind. Middle span clears the main flow; deck is a thin flat band; whole structure sits low over the water. Autumn palette."
+  },
+  {
+    "file": "pier04.jpg",
+    "type": "concrete girder, 2 span",
+    "view": "side elevation, medium close",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Andrews_Bridge_(Oct_2015),_Birchville,_Upper_Hutt,_NZ.jpg",
+    "license": "CC BY-SA 3.0",
+    "author": "Cameron Dewe",
+    "notes": "PRIMARY REFERENCE for the pier. Single battered wall pier standing in the river on a gravel bar; measured batter ~1:13 per face; dark waterline stain band on the pier base; soffit is lit from below by water bounce; deck has a tiny (~1 deg) angle break at the pier, not a curve. Forest gorge context."
+  },
+  {
+    "file": "girder04.jpg",
+    "type": "concrete girder, 3 span",
+    "view": "side/under, low angle",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Otis_Rd_SE_bridge_over_Indian_Creek.jpg",
+    "license": "CC BY-SA 3.0",
+    "author": "ArtisticAbode",
+    "notes": "Best read of pier shape and deck thickness: wall piers that flare wider towards the pier cap, dark soffit, crisp fascia beam edge, spans visibly unequal. Piers land in grass/dry bed with vegetation right up against them. Autumn."
+  },
+  {
+    "file": "girder03.jpg",
+    "type": "concrete bridge, solid parapet",
+    "view": "side elevation, low angle",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Ocqueoc_River_Bridge.jpg",
+    "license": "CC BY-SA 3.0",
+    "author": "David Coats",
+    "notes": "Weathering reference. Old solid concrete parapet with recessed panel moulding, horizontal form-lift lines, vertical drip streaks, blotchy per-panel tone variation. Deep black soffit shadow. Bank vegetation crowds the abutment."
+  },
+  {
+    "file": "girder05.jpg",
+    "type": "concrete girder, multi span",
+    "view": "side elevation with traffic",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Big_Thompson_River_Bridge_IV.JPG",
+    "license": "CC BY-SA 3.0",
+    "author": "Jeffrey Beall",
+    "notes": "Scale check: cars visible on the deck against the open steel rail, so railing-height vs vehicle-height is directly measurable. Round column pier, abutment retaining wall + wingwall at left. Open semi-arid terrain."
+  },
+  {
+    "file": "slab03.jpg",
+    "type": "concrete slab-on-beam, multi span",
+    "view": "3/4 side, showing approach embankment",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Concrete_bridge_over_river._Dirt_road_approaches.jpg",
+    "license": "Public Domain Mark (no known copyright)",
+    "author": "Queensland State Archives",
+    "notes": "Best reference for the embankment: raw graded earth approach ramp running continuously down into the riverbank, abutment + wingwall buried in it. Thin pipe railing on a low kerb. Multi-column bents standing in water. Open terrain. B&W archival."
+  },
+  {
+    "file": "slab06.jpg",
+    "type": "single-span slab, small stream",
+    "view": "from below, structural detail",
+    "source_url": "https://commons.wikimedia.org/wiki/File:M11_highway_bridge_over_the_B%C3%BCkk%C3%B6s_creek._North._Cyclists,_Pilis-Danube_Bend_bike_path._-_Szentendre,_Pest_county,_Hungary.JPG",
+    "license": "CC BY-SA 3.0",
+    "author": "Globetrotter19",
+    "notes": "Short single-span slab over a small creek: no piers at all, abutment walls rise straight out of the channel at both banks, deck fascia depth clearly readable, railing sits directly on the deck edge. Also shows concrete is never one flat tone. Urban park context, graffiti."
+  },
+  {
+    "file": "arch01.jpg",
+    "type": "stone/rubble masonry arch, single span",
+    "view": "side elevation",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Caher_Bridge-5059,_Dingle_Peninsula,_Co._Kerry,_Ireland.jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "Maoileann",
+    "notes": "Scenic old-road archetype: single rubble-stone arch springing from the waterline, low rubble parapet, road humps gently over the crown, mountains behind, moody overcast. Bridge sits very low over the water."
+  },
+  {
+    "file": "arch03.jpg",
+    "type": "stone masonry arch, single span",
+    "view": "side elevation",
+    "source_url": "https://commons.wikimedia.org/wiki/File:The_bridge_at_Dunsop_Bridge_over_the_River_Dunsop_-_geograph.org.uk_-_2399886.jpg",
+    "license": "CC BY-SA 2.0",
+    "author": "Alexander P Kapp",
+    "notes": "Cleanest arch geometry read: arch ring of voussoirs springing off a stone plinth at the waterline, coursed spandrel wall, coping-topped parapet, dark stain band on the lowest courses, green bank graded smoothly up to the abutment."
+  },
+  {
+    "file": "arch02.jpg",
+    "type": "stone masonry arch",
+    "view": "close, material detail",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Stony_Creek_Bridge_at_Danville.jpg",
+    "license": "Public domain",
+    "author": "Nyttend",
+    "notes": "Stone coursing reference: rock-faced ashlar courses ~0.35-0.45 m high, blocks 0.6-1.2 m long, recessed mortar joints, separate projecting arch ring, flat coping slab overhanging the parapet face with a drip edge."
+  },
+  {
+    "file": "arch04.jpg",
+    "type": "multi-arch masonry bridge",
+    "view": "distant, from approaching road",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Ellemford_Bridge_and_Whiteadder_Water_Valley_-_geograph.org.uk_-_162986.jpg",
+    "license": "CC BY-SA 2.0",
+    "author": "Colin Smith",
+    "notes": "LOD/silhouette reference: how a bridge reads at 300-600 m from the descending approach road - a single pale horizontal line on the valley floor with dark arch voids under it. Also shows the road descending into the valley towards the crossing. Spring gorse."
+  },
+  {
+    "file": "truss03.jpg",
+    "type": "steel through truss, single span",
+    "view": "side elevation",
+    "source_url": "https://commons.wikimedia.org/wiki/File:GENERAL_VIEW_OF_BRIDGE,_LOOKING_SOUTHWEST_BY_240_DEGREES_-_Cispus_Valley_Bridge,_Spanning_Cispus_River_at_Forest_Service_Road_2306,_Randle,_Lewis_County,_WA_HAER_WASH,21-RAND,2-1.tif",
+    "license": "Public domain",
+    "author": "Jet Lowe (HAER)",
+    "notes": "Single span clearing the whole channel with zero piers in the water; abutments hidden in both banks; gravel bar / braided low-flow river below; forest. Truss members are thin and you can see through the structure to the far bank."
+  },
+  {
+    "file": "truss02.jpg",
+    "type": "steel through truss + trestle approach",
+    "view": "distant side elevation, forest river",
+    "source_url": "https://commons.wikimedia.org/wiki/File:DISTANT_VIEW_OF_BRIDGE,_LOOKING_NORTH_-_Siuslaw_River_Bridge,_Spanning_Siuslaw_River,_Richardson_Road,_County_Road_5018,_Walton,_Lane_County,_OR_HAER_ORE,20-WALT.V,1-1.tif",
+    "license": "Public domain",
+    "author": "HAER / Jerry Robertson",
+    "notes": "Forest/valley context: truss covers only the main channel, a short low approach span reaches the near bank, one bent stands in the water. Shows deck height above water (~4-6 m) and how dense bank vegetation closes in on both abutments."
+  },
+  {
+    "file": "truss01.jpg",
+    "type": "steel truss, single lane",
+    "view": "driver/first-person approach, centred",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Approach_view_of_the_Elliot_Lane_Bridge,_view_looking_north_-_Crooked_River_Bridge,_Spanning_Crooked_River_on_Elliot_Lane_(County_Road_124)_at_Milepoint_1.38,_Prineville,_Crook_County,_HAER_OR-133-4.tif",
+    "license": "Public domain",
+    "author": "Leslie Schwab (HAER)",
+    "notes": "CRITICAL FRAMING REFERENCE - matches our chase camera almost exactly. Shows the approach funnel: w-beam guardrail flaring outward from the bridge end, roadway pinching narrower at the bridge than on the approach, guardrail bolted into the truss end post. Open terrain, distant hills."
+  },
+  {
+    "file": "pier01.jpg",
+    "type": "steel truss on cylindrical column piers",
+    "view": "side elevation, close",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Papinville_Marais_des_Cygnes_River_Bridge_--_Piers,_Superstructure,_High_Water_Marks.jpg",
+    "license": "CC BY-SA 3.0",
+    "author": "John LaRoe",
+    "notes": "Steel weathering reference: all paint gone, even dark orange-brown rust, heavier rust bleed at every bolted splice and along the bottom chord. Cylindrical steel column piers with visible bolted joints, buried in dense bank vegetation."
+  },
+  {
+    "file": "pier03.jpg",
+    "type": "timber truss, single lane",
+    "view": "driver approach, 3/4",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Wee_Jasper_Bridge_over_Goodradigbee_River.jpg",
+    "license": "CC BY-SA 2.0",
+    "author": "Ian Armstrong",
+    "notes": "Approach geometry in open valley terrain: road curves onto a bridge narrower than the road, white approach handrail runs continuously into the truss, boulder riverbed visible under the deck, dry hills behind. 'No overtaking' + name sign at the abutment."
+  },
+  {
+    "file": "curve01.jpg",
+    "type": "curved concrete girder",
+    "view": "along the deck from the abutment",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Banjo_Paterson_Bridge_Illalong_Creek_Walter_Griffin_Way_slightly_curved_concrete_Bridge.JPG",
+    "license": "CC BY-SA 4.0",
+    "author": "John Hewat",
+    "notes": "CURVED BRIDGE reference: fascia beam sweeps on a gentle horizontal curve, deck markings and edge line follow it, w-beam guardrail transitions into the concrete parapet exactly at the abutment joint. Open rolling pasture. Also shows a km marker post and the abutment drop-off."
+  },
+  {
+    "file": "curve02.jpg",
+    "type": "concrete bridge on a curve",
+    "view": "driver/chase view on approach",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Route-de-la-Communance-Br%C3%BCcke_%C3%BCber_die_Sorne,_Court%C3%A9telle_JU_20180929-jag9889.jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "Jag9889",
+    "notes": "Closest match to our chase framing on a curve: continuous galvanised w-beam guardrail sweeping through an S-bend into the crossing, the bridge itself announced only by a change of railing type, camber and markings visibly unchanged across the deck. Autumn, hazy hills."
+  },
+  {
+    "file": "grade01.jpg",
+    "type": "hump bridge over small river",
+    "view": "driver approach, on a grade",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Approaching_the_School_Road_hump_bridge_over_the_Moneycarragh_River_-_geograph.org.uk_-_4380338.jpg",
+    "license": "CC BY-SA 2.0",
+    "author": "Eric Jones",
+    "notes": "GRADE reference: road descends into the crossing then lifts over a gentle hump, with a hump-bridge warning sign. Shows the vertical profile is a smooth sag-then-crest, never a kink. Hedged lane, late winter."
+  },
+  {
+    "file": "valley01.jpg",
+    "type": "small road bridge over river",
+    "view": "on the deck, looking along the road",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Road_bridge_over_a_river,_Wyndham_-_geograph.org.uk_-_6194261.jpg",
+    "license": "CC BY-SA 2.0",
+    "author": "Jaggery",
+    "notes": "Best read of the parapet-to-guardrail transition: white bridge railing ends in a short return, then a w-beam guardrail peels away into the bank. Deck crowns visibly. Road pinches to bridge width. Brambles encroaching on the parapet. Valley behind."
+  },
+  {
+    "file": "cross01.jpg",
+    "type": "modern concrete bridge",
+    "view": "chase view, on the bridge",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Crossing_the_new_bridge_over_the_Swanlinbar_River_-_geograph.org.uk_-_2687047.jpg",
+    "license": "CC BY-SA 2.0",
+    "author": "Eric Jones",
+    "notes": "Almost exactly our chase camera, mid-crossing, with a motorcyclist for scale: metal parapet railing on a low concrete upstand, railing top around a rider's shoulder height, lane dashes and edge line running straight through, hard shoulder maintained across the deck."
+  },
+  {
+    "file": "approach04.jpg",
+    "type": "low modern bridge over small river",
+    "view": "driver approach, open terrain",
+    "source_url": "https://commons.wikimedia.org/wiki/File:The_N15_at_the_approach_to_the_bridge_over_the_River_Duff_-_geograph.org.uk_-_2720679.jpg",
+    "license": "CC BY-SA 2.0",
+    "author": "Eric Jones",
+    "notes": "KEY LESSON: on a low modern bridge over a small river, from the driver's seat the bridge is invisible as a structure - it reads only as a short run of parapet on both shoulders plus a river-name sign. Guardrail, then parapet, then guardrail. Markings unchanged."
+  },
+  {
+    "file": "approach02.jpg",
+    "type": "stone arch bridge, narrow lane",
+    "view": "driver approach",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Road_approaching_bridge_over_River_Marron_-_geograph.org.uk_-_6820325.jpg",
+    "license": "CC BY-SA 2.0",
+    "author": "Trevor Littlewood",
+    "notes": "Driver-eye onto a stone arch: dry-stone field wall runs into the bridge parapet, arch ring visible over the right edge, lane narrows and lifts slightly over the crossing. Spring, bare trees. Shows how the roadside boundary hands over to the parapet."
+  },
+  {
+    "file": "approach03.jpg",
+    "type": "small bridge in a dip",
+    "view": "driver approach, open terrain",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Approach_to_Elishaw_Bridge_over_the_River_Rede_-_geograph.org.uk_-_2950214.jpg",
+    "license": "CC BY-SA 2.0",
+    "author": "Stanley Howe",
+    "notes": "Vertical profile in open pasture: the road descends to the crossing, the white parapet run sits at the low point, then the road climbs away. Centre dashes and edge lines continue. Slightly overexposed but the profile logic is the value."
+  },
+  {
+    "file": "approach05.jpg",
+    "type": "small road bridge over river",
+    "view": "driver approach, backlit winter",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Approaching_a_road_bridge_over_the_River_Roden_in_January_-_geograph.org.uk_-_7956949.jpg",
+    "license": "CC BY-SA 2.0",
+    "author": "Jeremy Bolwell",
+    "notes": "Backlit low-sun winter approach: brick parapet right, timber rail left, water surface visible on both sides right up to the parapet line. Useful for checking our bridge silhouette against a bright sky and wet road specular."
+  },
+  {
+    "file": "approach07.jpg",
+    "type": "stone parapet bridge, minor road",
+    "view": "driver approach",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Approaching_the_Low_Road_Bridge_over_the_Flurry_River_-_geograph.org.uk_-_4370781.jpg",
+    "license": "CC BY-SA 2.0",
+    "author": "Eric Jones",
+    "notes": "Parapet end detail: coped stone parapet on the right ends in a stepped return where it meets the bank, road curves over the crossing, no markings on this minor road. Winter light, low sun raking the parapet face."
+  },
+  {
+    "file": "approach08.jpg",
+    "type": "stone bridge on a forest lane",
+    "view": "driver approach, forest context",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Road_approaching_the_bridge_over_the_River_Lyne_-_geograph.org.uk_-_3716128.jpg",
+    "license": "CC BY-SA 2.0",
+    "author": "Steven Brown",
+    "notes": "FOREST CONTEXT reference: autumn lane curving onto a mossy stone bridge, leaf litter drifted onto the shoulder, chevron board on the outside of the bend, parapet half-lost in vegetation. Shows how much a real bridge is occluded by planting."
+  },
+  {
+    "file": "approach01.jpg",
+    "type": "iron/truss bridge, single lane",
+    "view": "driver approach, valley context",
+    "source_url": "https://commons.wikimedia.org/wiki/File:A466_approach_to_Bigsweir_Bridge_over_River_Wye_-_geograph.org.uk_-_7512360.jpg",
+    "license": "CC BY-SA 2.0",
+    "author": "Robin Webster",
+    "notes": "Driver approach in a wooded valley: white railing run, then a pale green iron bridge beyond, wooden post-and-rail giving way to the bridge parapet, traffic signals for the single-lane crossing. Overcast. Good for the mid-distance read of a bridge among trees."
+  },
+  {
+    "file": "cross02.jpg",
+    "type": "small masonry bridge",
+    "view": "roadside, winter/frost",
+    "source_url": "https://commons.wikimedia.org/wiki/File:The_A361_crossing_Buckland_Bridge_over_the_river_Caen_-_geograph.org.uk_-_2188442.jpg",
+    "license": "CC BY-SA 2.0",
+    "author": "Roger A Smith",
+    "notes": "Winter/frost season variant, and how a small bridge reads at ~80 m: a short pale parapet run on the right plus a dip in the tree line. Frosted verge, wet dark asphalt, low sun."
+  },
+  {
+    "file": "cement01.jpg",
+    "type": "concrete arch, decommissioned",
+    "view": "3/4 side with human figure",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Cement_Bridge_near_Buchanan.JPG",
+    "license": "CC BY-SA 4.0",
+    "author": "John Kaminski",
+    "notes": "Human scale plus heavy concrete weathering: orange rust/lichen staining, spalled edges, blotchy tone. Gravel road on an embankment grading down to the water in open prairie. A person standing on the arch gives an absolute scale check."
+  },
+  {
+    "file": "girder02.jpg",
+    "type": "concrete bridge, pipe railing",
+    "view": "deck level, along the bridge",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Highway_14_Elk_River_Bridge.jpg",
+    "license": "CC BY-SA 3.0",
+    "author": "Mdcastle",
+    "notes": "Deck-surface detail only (context is a town, ignore it): thin pipe rail sitting on a low concrete kerb/upstand, transverse deck joints, centreline and edge markings running unbroken across the deck, shoulder width maintained."
+  },
+  {
+    "file": "abut01.jpg",
+    "type": "concrete abutment",
+    "view": "close detail, girder seat + wingwall",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Detail,_upstream_side_of_north_abutment,_showing_main_girder_seat._-_Salt_River_Bridge,_Spanning_Salt_River_at_Dillon_Road,_Ferndale,_Humboldt_County,_CA_HAER_CAL,12-FERDA.V,1-14.tif",
+    "license": "Public domain",
+    "author": "Ed Anderson (HAER)",
+    "notes": "Abutment material detail: back wall meeting wingwall at a right angle, girder seat above, horizontal form-lift joints every ~0.6-0.75 m, honeycombed/exposed aggregate patches, ivy climbing the base out of the earth. Nothing about a real abutment is a clean flat plane."
+  }
+]

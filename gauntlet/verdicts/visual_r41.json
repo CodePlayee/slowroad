@@ -1,0 +1,100 @@
+{
+  "schema": "gauntlet.visual-verdict.v1",
+  "piece": "visual",
+  "round": 41,
+  "agent": "independent_visual_r41",
+  "method": "Fresh seven-shot anonymous A/B review from an isolated headless browser. Quality was chosen before opening each randomized side map; identity was revealed afterward. The canonical terrestrial winter reference is sr_13.jpg.",
+  "capture": {
+    "resolution": "1920x1080",
+    "browser": "fresh headless9365",
+    "cdp_port": 9365,
+    "status": "passed",
+    "page_errors": [],
+    "cleanup_remaining": 0,
+    "shots_dir": "gauntlet/rounds/visual_r41/shots",
+    "ab_dir": "gauntlet/rounds/visual_r41/ab",
+    "shots": ["chase_summer_noon", "chase_golden", "chase_night", "cockpit_overcast", "season_winter", "vista_wide", "cockpit_noon"],
+    "winter_reference": "refs/slowroads/official/sr_13.jpg",
+    "randomization": "independently randomized A/B per shot"
+  },
+  "quality_wins": {"ours": 0, "bar": 7, "tie": 0},
+  "score": 27,
+  "winner": "bar",
+  "blind_pick_correct": 7,
+  "identity_guesses": {"correct": 7, "total": 7},
+  "shots": [
+    {
+      "id": "chase_summer_noon",
+      "reference": "refs/slowroads/official/sr_01.jpg",
+      "quality_winner": "bar",
+      "identity": {"A": "ours", "B": "bar"},
+      "scores": {"ours": 50, "bar": 91},
+      "gap": "The road and car read clearly, but ours has sparse card-like grass, species-incoherent tree silhouettes, and hard planar verge patches. The bar has continuous rolling landform, denser grounded foliage, and stronger near/mid/far depth."
+    },
+    {
+      "id": "chase_golden",
+      "reference": "refs/slowroads/official/sr_04.jpg",
+      "quality_winner": "bar",
+      "identity": {"A": "ours", "B": "bar"},
+      "scores": {"ours": 44, "bar": 94},
+      "gap": "Ours has pale gray-green shoulders, flat tuft scatter, and weak contact/shadow structure. The bar carries warm amber fields, long shadows, and a more finished dusk exposure."
+    },
+    {
+      "id": "chase_night",
+      "reference": "refs/slowroads/official/sr_20.jpg",
+      "quality_winner": "bar",
+      "identity": {"A": "bar", "B": "ours"},
+      "scores": {"ours": 43, "bar": 89},
+      "gap": "Ours has stars and a readable road but most terrain collapses into blue-black low-poly silhouettes and the headlight field is weak. The bar preserves landform, road response, and nocturnal depth."
+    },
+    {
+      "id": "cockpit_overcast",
+      "reference": "refs/slowroads/official/sr_11.jpg",
+      "quality_winner": "bar",
+      "identity": {"A": "ours", "B": "bar"},
+      "scores": {"ours": 48, "bar": 86},
+      "comparability": {"weather_season": "N/A: capture is autumn overcast while the bar uses a different scene/time"},
+      "gap": "Ours communicates cockpit intent, but the oversized dark faceted dash occludes the lower frame and autumn trees/ground repeat as cards. The bar has restrained framing, mirror, road cut, and integrated hillside materials."
+    },
+    {
+      "id": "season_winter",
+      "reference": "refs/slowroads/official/sr_13.jpg",
+      "quality_winner": "bar",
+      "identity": {"A": "bar", "B": "ours"},
+      "scores": {"ours": 62, "bar": 92},
+      "comparability": {"weather": "N/A: capture is clear while the bar has active snowfall"},
+      "gap": "Ours is a coherent terrestrial winter road, but retains sparse dark trunks/cards, hard snow-road shoulder seams, and a clear blue horizon. The bar has layered snowy relief, falling snow, and continuous guardrail/road contact."
+    },
+    {
+      "id": "vista_wide",
+      "reference": "refs/slowroads/official/sr_03.jpg",
+      "quality_winner": "bar",
+      "identity": {"A": "bar", "B": "ours"},
+      "scores": {"ours": 47, "bar": 91},
+      "comparability": {"biome_water": "N/A: capture is an inland valley while the bar is a coastal water/cut-slope view"},
+      "gap": "Ours has an elevated road but the inland valley is flattened by repeated dark cards and lacks water/ridge separation. The bar has cut/fill terrain, shoreline context, and clear aerial layering."
+    },
+    {
+      "id": "cockpit_noon",
+      "reference": "refs/slowroads/official/sr_11.jpg",
+      "quality_winner": "bar",
+      "identity": {"A": "bar", "B": "ours"},
+      "scores": {"ours": 54, "bar": 87},
+      "comparability": {"weather_biome": "N/A: capture is clear inland summer while the bar is overcast coastal"},
+      "gap": "The wheel and centered road are legible, but ours has a noisy faceted dashboard, repeated silhouettes, and planar verge artifacts. The bar has cleaner cockpit framing, guardrail, lane treatment, and grounded roadside materials."
+    }
+  ],
+  "regression_check": {
+    "r40_tree_shrub_groundTilt": "removed",
+    "evidence": "Current tree and shrub instances remain in stable vertical frames rather than inheriting terrain tilt; no new broad crown-banking regression is visible in the seven r41 captures.",
+    "residual": "The dominant low-poly grass/terrain-card and material-depth gap remains, so removing that regression does not change the quality winner."
+  },
+  "protocol_gate": "not_passed",
+  "max_gap": "Continuous grounded landscape integration remains the largest mismatch: stamped foliage and hard-edged verge planes flatten near/mid/far material depth across every camera. Secondary gaps are golden/night material response, missing vista water/ridge context, cockpit occlusion, and winter atmosphere/contact.",
+  "notes": [
+    "All seven captures completed at 1920x1080 with full residency and no page errors.",
+    "Quality calls were made from anonymous A/B images before opening the side maps; all seven identity guesses were correct.",
+    "The fresh 9365 capture browser and 9366 A/B browser were shut down; both reported zero remaining processes."
+  ],
+  "status": "judging"
+}

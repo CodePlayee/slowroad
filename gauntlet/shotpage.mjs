@@ -1,0 +1,17 @@
+import { chromium } from 'playwright';
+const [url, out, w = '1600', h = '1000', wait = '2500'] = process.argv.slice(2);
+const browser = await chromium.connectOverCDP('http://127.0.0.1:9223', { timeout: 20000 });
+const ctx = browser.contexts()[0] || (await browser.newContext());
+const page = await ctx.newPage();
+const errs = [];
+page.on('pageerror', (e) => errs.push('[pageerror] ' + e.message));
+page.on('console', (m) => { if (m.type() === 'error') errs.push('[console] ' + m.text()); });
+page.on('requestfailed', (r) => errs.push('[reqfail] ' + r.url().slice(0, 120)));
+await page.setViewportSize({ width: Number(w), height: Number(h) });
+await page.goto(url, { timeout: 20000, waitUntil: 'domcontentloaded' });
+await page.waitForTimeout(Number(wait));
+await page.screenshot({ path: out, fullPage: true, timeout: 20000 });
+console.log('shot ' + out);
+if (errs.length) console.log(errs.slice(0, 20).join('\n'));
+await page.close();
+process.exit(0);

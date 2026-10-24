@@ -1,0 +1,441 @@
+{
+  "piece": "visual",
+  "round": 31,
+  "winner": "bar",
+  "status": "judging",
+  "method": "One frozen capture package; three fresh judges saw only anonymous images and the shared quality rubric; keys revealed after all decisions were saved. Identity was not requested or scored.",
+  "gap": "Official Slow Roads still leads in landscape composition, layered distant scenery, integrated road materials and golden/night lighting. Meadow and canopy appearance improved in daytime revision comparisons; winter preference remains split.",
+  "revision": {
+    "summer_candidate_votes": 3,
+    "cockpit_candidate_votes": 3,
+    "winter_candidate_votes": 1,
+    "winter_baseline_votes": 2
+  },
+  "reference": {
+    "reference_votes": 19,
+    "candidate_votes": 2,
+    "total": 21,
+    "reference_majority_families": 7,
+    "passed": false
+  },
+  "evidence": [
+    {
+      "id": "p01",
+      "shot": "chase_summer_noon",
+      "comparison": "revision",
+      "image": "gauntlet/rounds/31-review/p01.png",
+      "votes": [
+        {
+          "id": "p01",
+          "winner": "candidate",
+          "material_gap": true,
+          "confidence": 0.96,
+          "reason": "A has denser, more natural ground cover; B's vegetation reads as sparse flat patches.",
+          "judge": "a"
+        },
+        {
+          "id": "p01",
+          "winner": "candidate",
+          "material_gap": true,
+          "confidence": 0.98,
+          "reason": "A 的植被层次和贴地草丛更自然，B 的草地出现明显重复的平面贴片和硬切边。",
+          "judge": "b"
+        },
+        {
+          "id": "p01",
+          "winner": "candidate",
+          "material_gap": true,
+          "confidence": 0.92,
+          "reason": "A has softer, more varied ground cover and tree contact, while B shows conspicuously blocky repeated grass clumps and flatter terrain shading.",
+          "judge": "c"
+        }
+      ]
+    },
+    {
+      "id": "p02",
+      "shot": "season_winter",
+      "comparison": "revision",
+      "image": "gauntlet/rounds/31-review/p02.png",
+      "votes": [
+        {
+          "id": "p02",
+          "winner": "baseline",
+          "material_gap": false,
+          "confidence": 0.7,
+          "reason": "A has slightly richer tree and snow texture, but both winter scenes are similarly coherent.",
+          "judge": "a"
+        },
+        {
+          "id": "p02",
+          "winner": "baseline",
+          "material_gap": true,
+          "confidence": 0.9,
+          "reason": "A 的雪地起伏、灌木和树木细节更丰富，B 的雪面过于空白且草丛重复。",
+          "judge": "b"
+        },
+        {
+          "id": "p02",
+          "winner": "candidate",
+          "material_gap": true,
+          "confidence": 0.65,
+          "reason": "B presents a cleaner, more continuous snow surface; A has a distracting clipped dark grass cluster in the foreground and rougher ground breakup.",
+          "judge": "c"
+        }
+      ]
+    },
+    {
+      "id": "p03",
+      "shot": "cockpit_noon",
+      "comparison": "revision",
+      "image": "gauntlet/rounds/31-review/p03.png",
+      "votes": [
+        {
+          "id": "p03",
+          "winner": "candidate",
+          "material_gap": true,
+          "confidence": 0.86,
+          "reason": "A's hillsides read as continuous terrain, while B is dominated by repetitive grass clumps.",
+          "judge": "a"
+        },
+        {
+          "id": "p03",
+          "winner": "candidate",
+          "material_gap": true,
+          "confidence": 0.8,
+          "reason": "两侧道路和内饰接近，但 A 的坡面植被更连贯，B 有更多显眼的块状贴片。",
+          "judge": "b"
+        },
+        {
+          "id": "p03",
+          "winner": "candidate",
+          "material_gap": true,
+          "confidence": 0.9,
+          "reason": "A keeps the hills and roadside vegetation visually continuous, whereas B has strong tiled, angular grass patches that read as lower-quality materials.",
+          "judge": "c"
+        }
+      ]
+    },
+    {
+      "id": "p04",
+      "shot": "chase_summer_noon",
+      "comparison": "reference",
+      "image": "gauntlet/rounds/31-review/p04.png",
+      "votes": [
+        {
+          "id": "p04",
+          "winner": "reference",
+          "material_gap": true,
+          "confidence": 0.93,
+          "reason": "A provides a much richer, layered landscape with a convincing winding road and distant depth.",
+          "judge": "a"
+        },
+        {
+          "id": "p04",
+          "winner": "reference",
+          "material_gap": true,
+          "confidence": 1,
+          "reason": "A 展现出更完整的山谷远景、森林层次和细腻草地，B 的近景植被与地形明显更简化。",
+          "judge": "b"
+        },
+        {
+          "id": "p04",
+          "winner": "reference",
+          "material_gap": true,
+          "confidence": 0.95,
+          "reason": "A has a clearly defined winding road, layered distant hills, and dense terrain variation; B is flatter with simpler foliage and weaker depth cues.",
+          "judge": "c"
+        }
+      ]
+    },
+    {
+      "id": "p05",
+      "shot": "chase_golden",
+      "comparison": "reference",
+      "image": "gauntlet/rounds/31-review/p05.png",
+      "votes": [
+        {
+          "id": "p05",
+          "winner": "reference",
+          "material_gap": true,
+          "confidence": 0.99,
+          "reason": "A has cohesive sunset lighting and detailed road vegetation; B is washed out with crushed shadows.",
+          "judge": "a"
+        },
+        {
+          "id": "p05",
+          "winner": "reference",
+          "material_gap": true,
+          "confidence": 0.99,
+          "reason": "A 的夕照、车辆材质和田野道路具有清晰的层次与对比，B 曝光发白且植被材质粗糙。",
+          "judge": "b"
+        },
+        {
+          "id": "p05",
+          "winner": "reference",
+          "material_gap": true,
+          "confidence": 0.98,
+          "reason": "A has coherent sunset exposure, detailed road and grass textures, and convincing car contact, while B is washed out with flat vegetation and an over-bright sun.",
+          "judge": "c"
+        }
+      ]
+    },
+    {
+      "id": "p06",
+      "shot": "chase_night",
+      "comparison": "reference",
+      "image": "gauntlet/rounds/31-review/p06.png",
+      "votes": [
+        {
+          "id": "p06",
+          "winner": "candidate",
+          "material_gap": true,
+          "confidence": 0.85,
+          "reason": "A preserves readable nighttime terrain and roadside detail, whereas B loses most mountain detail to darkness.",
+          "judge": "a"
+        },
+        {
+          "id": "p06",
+          "winner": "reference",
+          "material_gap": true,
+          "confidence": 0.75,
+          "reason": "B 以车灯、弯道标志、湖面和山体形成更有层次的夜景光照，A 的画面大面积陷入黑暗。",
+          "judge": "b"
+        },
+        {
+          "id": "p06",
+          "winner": "reference",
+          "material_gap": true,
+          "confidence": 0.75,
+          "reason": "B gives the night scene stronger readable contrast through the illuminated curve, sign, and lake edge; A is more uniformly crushed into darkness.",
+          "judge": "c"
+        }
+      ]
+    },
+    {
+      "id": "p07",
+      "shot": "cockpit_overcast",
+      "comparison": "reference",
+      "image": "gauntlet/rounds/31-review/p07.png",
+      "votes": [
+        {
+          "id": "p07",
+          "winner": "reference",
+          "material_gap": true,
+          "confidence": 0.8,
+          "reason": "B has a more polished road, guardrail, hillside, and dashboard presentation with stronger spatial detail.",
+          "judge": "a"
+        },
+        {
+          "id": "p07",
+          "winner": "reference",
+          "material_gap": true,
+          "confidence": 0.98,
+          "reason": "B 的道路、护栏、山坡植被和驾驶舱细节更真实连贯，A 的秋季场景材质较平。",
+          "judge": "b"
+        },
+        {
+          "id": "p07",
+          "winner": "reference",
+          "material_gap": true,
+          "confidence": 0.99,
+          "reason": "B has substantially clearer dashboard, mirror, guardrail, road, and hillside materials; A reads as a much rougher low-detail cockpit and landscape.",
+          "judge": "c"
+        }
+      ]
+    },
+    {
+      "id": "p08",
+      "shot": "season_winter",
+      "comparison": "reference",
+      "image": "gauntlet/rounds/31-review/p08.png",
+      "votes": [
+        {
+          "id": "p08",
+          "winner": "reference",
+          "material_gap": true,
+          "confidence": 0.95,
+          "reason": "A's snowy mountain road has stronger atmospheric depth and a more convincing winter setting.",
+          "judge": "a"
+        },
+        {
+          "id": "p08",
+          "winner": "reference",
+          "material_gap": true,
+          "confidence": 0.99,
+          "reason": "A 的雪山弯道、雾气、降雪和远景层次完整，B 更像重复的低多边形雪地贴片。",
+          "judge": "b"
+        },
+        {
+          "id": "p08",
+          "winner": "reference",
+          "material_gap": true,
+          "confidence": 0.97,
+          "reason": "A provides a strong continuous snowy mountain vista with atmospheric snowfall and road integration, while B is flatter and visibly patchy in its snow vegetation.",
+          "judge": "c"
+        }
+      ]
+    },
+    {
+      "id": "p09",
+      "shot": "vista_wide",
+      "comparison": "reference",
+      "image": "gauntlet/rounds/31-review/p09.png",
+      "votes": [
+        {
+          "id": "p09",
+          "winner": "reference",
+          "material_gap": true,
+          "confidence": 0.99,
+          "reason": "B offers a highly legible lakeside road with natural vegetation and convincing mountain scale; A is dark and geometrically awkward.",
+          "judge": "a"
+        },
+        {
+          "id": "p09",
+          "winner": "reference",
+          "material_gap": true,
+          "confidence": 0.99,
+          "reason": "B 的湖岸山体、道路曲线和植被尺度更自然，A 的俯视场景偏暗且地形贴片感明显。",
+          "judge": "b"
+        },
+        {
+          "id": "p09",
+          "winner": "reference",
+          "material_gap": true,
+          "confidence": 0.99,
+          "reason": "B has a highly legible coastal road composition with layered mountains, water, and detailed vegetation; A is darker, flatter, and shows obvious terrain/foliage clipping.",
+          "judge": "c"
+        }
+      ]
+    },
+    {
+      "id": "p10",
+      "shot": "cockpit_noon",
+      "comparison": "reference",
+      "image": "gauntlet/rounds/31-review/p10.png",
+      "votes": [
+        {
+          "id": "p10",
+          "winner": "candidate",
+          "material_gap": false,
+          "confidence": 0.65,
+          "reason": "B's bright exterior and textured cockpit edge out A's flatter gray truck interior, though both are coherent.",
+          "judge": "a"
+        },
+        {
+          "id": "p10",
+          "winner": "reference",
+          "material_gap": true,
+          "confidence": 0.88,
+          "reason": "A 的海岸道路、护栏和山坡材质更细致真实，B 的草坡重复块状植被更显粗糙。",
+          "judge": "b"
+        },
+        {
+          "id": "p10",
+          "winner": "reference",
+          "material_gap": true,
+          "confidence": 0.8,
+          "reason": "A's truck cabin, mirror, guardrail, and mountain-road materials are more developed, while B's cockpit and roadside scene are brighter but noticeably simpler and more blocky.",
+          "judge": "c"
+        }
+      ]
+    }
+  ],
+  "performance": {
+    "before": {
+      "query": "seed=7&t=12&season=summer&weather=clear&cam=chase&km=6.0",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "cam": "chase",
+      "km": 6,
+      "season": "summer",
+      "t": 12,
+      "static": {
+        "drawCalls": 426,
+        "triangles": 1277279,
+        "programs": 23,
+        "frameMs_p50": 16.6,
+        "frameMs_p95": 18.2,
+        "fps_p50": 60
+      },
+      "driving": {
+        "frames": 358,
+        "seconds": 6.003,
+        "fps": 59.6,
+        "worstFrameMs": 46.9,
+        "framesOver33ms": 6,
+        "maxDrawCalls": 430,
+        "maxTriangles": 1277279,
+        "kmTravelled": 0.154
+      }
+    },
+    "after": {
+      "query": "seed=7&t=12&season=summer&weather=clear&cam=chase&km=6.0",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "cam": "chase",
+      "km": 6,
+      "season": "summer",
+      "t": 12,
+      "static": {
+        "drawCalls": 427,
+        "triangles": 1284227,
+        "programs": 23,
+        "frameMs_p50": 16.7,
+        "frameMs_p95": 23.1,
+        "fps_p50": 60
+      },
+      "driving": {
+        "frames": 354,
+        "seconds": 6.014,
+        "fps": 58.9,
+        "worstFrameMs": 58.7,
+        "framesOver33ms": 6,
+        "maxDrawCalls": 430,
+        "maxTriangles": 1284227,
+        "kmTravelled": 0.155
+      }
+    }
+  },
+  "technical": {
+    "rigcheck": "34/34 passed",
+    "unit_tests": "4/4 passed",
+    "cleanup": {
+      "code": 0,
+      "profile": "round-185-mtz260ew",
+      "remaining": 0
+    },
+    "visual_regression": "9/9 passed, including 1280x720 and 390x844 canvas checks",
+    "isolated_browser_processes_remaining": 0
+  },
+  "assets": {
+    "mask": "public/textures/meadow-opacity-r31.png",
+    "provenance": "public/textures/meadow-opacity-r31.md",
+    "only_style_reference": "refs/slowroads/official/sr_01.jpg"
+  },
+  "manifest": [
+    {
+      "file": "src/world/world.js",
+      "sha256": "856e76e1e49f56a64204715a44ff3c4e96743767d48549318c2eb304f9719603"
+    },
+    {
+      "file": "src/vegetation/vegetation.js",
+      "sha256": "3a32106daf25cc56d85704dbf43927774e1a9d6df546d95a0a4a9c9ae8cc6645"
+    },
+    {
+      "file": "src/vegetation/params.js",
+      "sha256": "72d2d2941395812ee0741f39a4342e79b6faaec14e1318312c4d7bdc02f82b90"
+    },
+    {
+      "file": "src/rig/rig.js",
+      "sha256": "3a4287070cc9aa1dece9302d751bf44223a3825373c9f441ce5899dd3252b926"
+    },
+    {
+      "file": "public/textures/meadow-opacity-r31.png",
+      "sha256": "983e87d427273859246757271991a406702ccbeb79ace7d3a4ae5c66bfa08242"
+    }
+  ]
+}

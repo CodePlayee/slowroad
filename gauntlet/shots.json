@@ -1,0 +1,131 @@
+{
+  "_comment": "Canonical shots. id -> {params, piece, bar, note}. `params` is the query string handed to shoot.mjs. If refs/slowroads/SHOTLIST.md exists and disagrees, SHOTLIST.md wins and this file must be updated to match its ids.",
+  "_resolution": "1920x1080, matching refs/slowroads/official/",
+  "shots": {
+    "road_segment_seam": {
+      "params": "seed=7&t=12&season=summer&weather=clear&cam=chase&km=0.124",
+      "piece": "road",
+      "note": "260m road segment boundary immediately behind the car; asphalt and paint must remain continuous"
+    },
+    "route_18km": {
+      "params": "seed=7&t=12&season=summer&weather=clear&cam=chase&km=18",
+      "piece": "vegetation",
+      "bar": "refs/slowroads/official/sr_16.jpg",
+      "note": "fixed later-route woodland coverage and roadside grass transition"
+    },
+    "route_26km": {
+      "params": "seed=7&t=12&season=summer&weather=clear&cam=chase&km=26",
+      "piece": "vegetation",
+      "bar": "refs/slowroads/official/sr_16.jpg",
+      "note": "fixed late-route woodland coverage; not the initial populated area"
+    },
+    "chase_summer_noon": {
+      "params": "seed=7&t=12&season=summer&weather=clear&cam=chase&km=6.0",
+      "piece": "road",
+      "bar": "refs/slowroads/official/sr_01.jpg",
+      "note": "the default frame: car, ribbon, verge, mid-ground trees, distant ridges"
+    },
+    "chase_golden": {
+      "params": "seed=7&t=18.4&season=summer&weather=clear&cam=chase&km=9.4",
+      "piece": "daycycle",
+      "bar": "refs/slowroads/official/sr_04.jpg",
+      "note": "low warm sun, long shadows across the road"
+    },
+    "chase_dawn": {
+      "params": "seed=12&t=6.1&season=spring&weather=hazy&cam=chase&km=2.4",
+      "piece": "atmosphere",
+      "bar": "refs/slowroads/official/sr_13.jpg",
+      "note": "dawn haze, valley fog layering"
+    },
+    "chase_night": {
+      "params": "seed=7&t=22.5&season=summer&weather=clear&cam=chase&km=7.1",
+      "piece": "daycycle",
+      "bar": "refs/slowroads/official/sr_20.jpg",
+      "note": "headlights, moon, stars"
+    },
+    "cockpit_noon": {
+      "params": "seed=7&t=11.2&season=summer&weather=clear&cam=cockpit&km=5.2",
+      "piece": "journey",
+      "bar": "refs/slowroads/official/sr_11.jpg",
+      "note": "driver view: wheel, dash, A-pillar, road ahead"
+    },
+    "cockpit_overcast": {
+      "params": "seed=21&t=9.8&season=autumn&weather=overcast&cam=cockpit&km=3.6",
+      "piece": "atmosphere",
+      "bar": "refs/slowroads/official/sr_11.jpg",
+      "note": "flat overcast light, low contrast"
+    },
+    "vista_wide": {
+      "params": "seed=7&t=16.5&season=summer&weather=clear&cam=cine&km=12.1",
+      "piece": "terrain",
+      "bar": "refs/slowroads/official/sr_03.jpg",
+      "note": "wide elevated frame: ridgeline layers, road threading the landform"
+    },
+    "vista_ridges": {
+      "params": "seed=31&t=17.2&season=summer&weather=hazy&cam=vista&km=8.0",
+      "piece": "atmosphere",
+      "bar": "refs/slowroads/official/sr_03.jpg",
+      "note": "3-5 depth layers of ridge separated by aerial perspective"
+    },
+    "bridge_approach": {
+      "params": "seed=7&t=14.0&season=summer&weather=clear&cam=chase&km=3.95",
+      "piece": "bridge",
+      "bar": "refs/bridges/approach04.jpg",
+      "note": "driver view of a crossing: parapet + unchanged road surface"
+    },
+    "bridge_side": {
+      "params": "seed=7&t=14.0&season=summer&weather=clear&cam=cine&km=4.0",
+      "piece": "bridge",
+      "bar": "refs/bridges/pier04.jpg",
+      "note": "structure visible: fascia, soffit shadow, piers into the bed, abutments"
+    },
+    "bridge_second": {
+      "params": "seed=7&t=10.5&season=summer&weather=clear&cam=cine&km=15.29",
+      "piece": "bridge",
+      "bar": "refs/bridges/truss03.jpg",
+      "note": "single/two-span crossing on a narrower river"
+    },
+    "water_river": {
+      "params": "seed=7&t=13.0&season=summer&weather=clear&cam=cine&km=12.08",
+      "piece": "water",
+      "bar": "refs/slowroads/official/sr_03.jpg",
+      "note": "river surface, shoreline, depth gradient"
+    },
+    "forest_dense": {
+      "params": "seed=12&t=13.5&season=summer&weather=clear&cam=chase&km=5.5",
+      "piece": "vegetation",
+      "bar": "refs/slowroads/official/sr_16.jpg",
+      "note": "road through dense woodland, near grass detail"
+    },
+    "meadow_open": {
+      "params": "seed=31&t=15.0&season=summer&weather=clear&cam=chase&km=4.2",
+      "piece": "vegetation",
+      "bar": "refs/slowroads/official/sr_01.jpg",
+      "note": "open grassland, grass falloff into the distance"
+    },
+    "season_spring": {
+      "params": "seed=7&t=13.0&season=spring&weather=clear&cam=chase&km=6.0",
+      "piece": "season",
+      "bar": "refs/slowroads/official/sr_16.jpg",
+      "note": "same frame as chase_summer_noon, spring palette"
+    },
+    "season_autumn": {
+      "params": "seed=7&t=13.0&season=autumn&weather=clear&cam=chase&km=6.0",
+      "piece": "season",
+      "bar": "refs/slowroads/official/sr_22.jpg",
+      "note": "same frame, autumn palette"
+    },
+    "season_winter": {
+      "params": "seed=7&t=13.0&season=winter&weather=clear&cam=chase&km=6.0",
+      "piece": "season",
+      "bar": "refs/slowroads/official/sr_13.jpg",
+      "note": "terrestrial winter bar: snow-covered hills, falling snow, road and guardrail; camera/framing differs from the chase shot"
+    },
+    "streaming_far": {
+      "params": "seed=7&t=12.0&season=summer&weather=clear&cam=cine&km=20.0&dist=1.6",
+      "piece": "streaming",
+      "bar": "refs/slowroads/official/sr_03.jpg",
+      "note": "deep into the route: proves endlessness and far-LOD quality"
+    }
+  }
+}
