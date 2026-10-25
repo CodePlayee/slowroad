@@ -11,7 +11,7 @@ registerHooks({ load(url, context, next) {
     ? { format: 'module', source: readFileSync(fileURLToPath(url), 'utf8'), shortCircuit: true }
     : next(url, context);
 } });
-const { RoadMesh } = await import('../src/road/roadmesh.js');
+const { RoadMesh, RIBBON_STATIONS } = await import('../src/road/roadmesh.js');
 const { World } = await import('../src/world/world.js');
 const { ROAD } = await import('../src/road/params.js');
 
@@ -35,8 +35,8 @@ function build(road, index) {
 function row(mesh, last = false) {
   const position = mesh.geometry.attributes.position;
   const along = mesh.geometry.attributes.aRoad;
-  const offset = last ? position.count - 13 : 0;
-  return Array.from({ length: 13 }, (_, k) => ({
+  const offset = last ? position.count - RIBBON_STATIONS : 0;
+  return Array.from({ length: RIBBON_STATIONS }, (_, k) => ({
     point: mesh.localToWorld(new THREE.Vector3().fromBufferAttribute(position, offset + k)),
     s: along.getY(offset + k),
     lateral: along.getX(offset + k),
@@ -84,8 +84,8 @@ test('short final road segments reach the endpoint with positive longitudinal st
     assert.equal(row(mesh)[0].s, 260);
     assert.equal(row(mesh, true)[0].s, length);
     const along = mesh.geometry.attributes.aRoad;
-    for (let i = 13; i < along.count; i += 13) {
-      const step = along.getY(i) - along.getY(i - 13);
+    for (let i = RIBBON_STATIONS; i < along.count; i += RIBBON_STATIONS) {
+      const step = along.getY(i) - along.getY(i - RIBBON_STATIONS);
       assert.ok(step > 0 && step <= ROAD.resample);
     }
   }

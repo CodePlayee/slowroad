@@ -269,6 +269,8 @@ export class Atmosphere {
       ATMO.mistTintBlend,
       winterSeason ? lerp(2.35, 2.0, nightness) : lerp(ATMO.aerialMixGamma, 2.4, nightness),
     );
+    // Same far-distance curve for every time of day and weather (see ATMO.aerialFar).
+    fogUniforms.uAerialFar.value.fromArray(ATMO.aerialFar);
     // compat hook for water.js's grazing sky reflection — see fog.js.
     // water.js mixes up to 59% of this into the surface, so it must be peak-limited: a
     // clear-day horizon is 4.3 in linear blue and fed raw it made every lake a band of

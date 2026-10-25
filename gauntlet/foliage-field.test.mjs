@@ -242,6 +242,31 @@ test('near and far shaders share ridge lift, coherent wind and post-cutout cover
   field.dispose(); source.dispose();
 });
 
+test('headlights shade foliage photopically with their own crown term, outside the moonlit key term', () => {
+  const { template, field, source } = fakeField();
+  for (const species of ['pine', 'oak']) for (const part of ['bark', 'leaf', 'impostor']) {
+    const material = makeFoliageMaterial({ ...template, species }, part, {}, { register() {} });
+    const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader };
+    material.onBeforeCompile(shader);
+    const fragment = shader.fragmentShader;
+    const spot = fragment.indexOf('#if ( NUM_SPOT_LIGHTS > 0 )'), directional = fragment.indexOf('#if ( NUM_DIR_LIGHTS > 0 )');
+    assert.ok(spot > fragment.indexOf('vec3 foliagePhotopicShift') && directional > spot);
+    const spotSection = fragment.slice(spot, directional);
+    // Albedo is restored around the lamp only, and its diffuse bypasses the key-light crown term.
+    assert.ok(spotSection.indexOf('material.diffuseColor += foliagePhotopicShift') < spotSection.indexOf('RE_Direct('));
+    assert.ok(spotSection.indexOf('material.diffuseColor -= foliagePhotopicShift') > spotSection.indexOf('RE_Direct('));
+    assert.match(spotSection, /inverseTransformDirection\(directLight\.direction, viewMatrix\)/);
+    assert.match(spotSection, /reflectedLight\.directDiffuse = foliageSpotBase/);
+    assert.doesNotMatch(fragment.slice(directional), /foliagePhotopicShift/);
+    assert.ok(fragment.indexOf('reflectedLight.directDiffuse += foliageSpotDiffuse') > fragment.indexOf('foliageHullLight * (1.0 - 0.65 * foliageInterior)'));
+    // Every shift that the scotopic mix removes is attenuated by the snow layered on top.
+    if (part !== 'bark') assert.match(fragment, /foliageScotopicShift = foliagePhotopicColor - diffuseColor\.rgb/);
+    assert.match(fragment, /foliageScotopicShift \*= 1\.0 - foliageRootSnow/);
+    material.dispose();
+  }
+  field.dispose(); source.dispose();
+});
+
 test('oak and evergreen leaf shaders cannot share their seasonal GPU program', () => {
   const { template, field, source } = fakeField();
   const pine = makeFoliageMaterial(template, 'leaf', {}, { register() {} });
@@ -323,27 +348,53 @@ test('deciduous autumn replaces green pigment rather than tinting bark or evergr
   field.dispose(); source.dispose();
 });
 
-test('ridge factorization retains the original equations and exact near-zero branch', () => {
+test('ridge factorization retains the reference equations, exact near-zero branch and lift bound', () => {
   const smoothstep = (a, b, value) => { const t = Math.max(0, Math.min(1, (value - a) / (b - a))); return t * t * (3 - 2 * t); };
-  const original = (x, z, cameraX, cameraZ) => {
+  const T = TERRAIN;
+  const original = (x, z, cameraX, cameraZ, y, cameraY) => {
     const distance = Math.hypot(x - cameraX, z - cameraZ);
-    if (distance <= TERRAIN.farRidgeNear) return 0;
-    const a = 1 - Math.abs(Math.sin(x * 0.00016 + z * 0.000095 + Math.sin(x * 0.000047) * 1.7 + Math.sin(z * 0.000031) * 0.8));
-    const b = 1 - Math.abs(Math.sin(x * -0.000071 + z * 0.00019 + Math.sin(z * 0.000061) * 1.4 + Math.sin(x * 0.000022) * 0.9));
-    const c = 1 - Math.abs(Math.sin(x * 0.00031 - z * 0.00022 + Math.sin(x * 0.00009 + z * 0.00013) * 0.55));
-    const ca = 0.5 + 0.5 * Math.sin(x * 0.000043 - z * 0.000027 + Math.sin(x * 0.000019 + z * 0.000013) * 1.2);
-    const cb = 0.5 + 0.5 * Math.cos(x * -0.000021 + z * 0.000036 + Math.sin(z * 0.000016) * 0.9);
-    const shape = smoothstep(0.16, 0.86, a) * (0.38 + ca * 0.18) + smoothstep(0.18, 0.84, b) * (0.24 + cb * 0.16)
-      + smoothstep(0.22, 0.82, c) * 0.18 - 0.34;
-    const shoulder = smoothstep(0.34, 0.72, a * (0.46 + ca * 0.16) + b * (0.30 + cb * 0.08));
-    return (shape * TERRAIN.farRidgeAmp + (shoulder - 0.42) * TERRAIN.farRidgeAmp * 0.34)
-      * smoothstep(TERRAIN.farRidgeNear, TERRAIN.farRidgeFar, distance);
+    if (distance <= T.farRidgeNear) return 0;
+    const hill = Math.max(smoothstep(T.farRidgeOpen[0], T.farRidgeOpen[1], distance),
+      T.farRidgeHillFloor + (1 - T.farRidgeHillFloor) * smoothstep(T.farRidgeHill[0], T.farRidgeHill[1], y - cameraY));
+    const ramp = T.farRidgeNearScale + (1 - T.farRidgeNearScale) * smoothstep(T.farRidgeRamp[0], T.farRidgeRamp[1], distance);
+    const envelope = T.farRidgeAmp * smoothstep(T.farRidgeNear, T.farRidgeFar, distance) * hill * ramp;
+    const wx = x + 900 * Math.sin(z * 0.00031 + 1.3) + 520 * Math.sin((x + z) * 0.00057);
+    const wz = z + 900 * Math.sin(x * 0.00027 - 0.7) + 520 * Math.sin((x - z) * 0.00049);
+    const a = 1 - Math.abs(Math.sin(wx * 0.00112 + wz * 0.00081));
+    const b = 1 - Math.abs(Math.sin(wx * -0.00046 + wz * 0.00071 + 1.9));
+    const c = 1 - Math.abs(Math.sin(wx * 0.00041 + wz * -0.00028 + 0.6));
+    const pa = 0.55 + 0.45 * Math.sin(wx * -0.00081 + wz * 0.00112 + 0.4);
+    const pb = 0.55 + 0.45 * Math.sin(wx * 0.00071 + wz * 0.00046 - 1.2);
+    const pc = 0.60 + 0.40 * Math.sin(wx * 0.00028 + wz * 0.00041 + 2.3);
+    const crest = a * a * pa * 0.42 + b * b * pb * 0.36 + c * c * pc * 0.42;
+    return (T.farRidgeBase + (1 - T.farRidgeBase) * Math.min(1, crest)) * envelope;
   };
-  for (const distance of [0, TERRAIN.farRidgeNear - 1e-8, TERRAIN.farRidgeNear, TERRAIN.farRidgeNear + 1e-8, 1500, 5200, 10000]) {
+  for (const distance of [0, T.farRidgeNear - 1e-8, T.farRidgeNear, T.farRidgeNear + 1e-8, 1500, 3400, 5200, 8500, 10000]) {
     for (const [x, z] of [[0, 0], [1530, -920], [-8700, 3420]]) {
-      assert.equal(foliageRidgeOffset(x, z, x + distance, z), original(x, z, x + distance, z));
+      for (const [y, cameraY] of [[0, 0], [180, 20], [-40, 60]]) {
+        const lift = foliageRidgeOffset(x, z, x + distance, z, y, cameraY);
+        assert.equal(lift, original(x, z, x + distance, z, y, cameraY));
+        // culling pads (terrain bounds, foliage worldBoundsPadding) rely on this bound
+        assert.ok(lift >= 0 && lift <= T.farRidgeAmp * smoothstep(T.farRidgeNear, T.farRidgeFar, distance) + 1e-9);
+      }
     }
   }
+});
+
+test('GLSL far ridge uses the JS shape constants and is shared by terrain and foliage shaders', async () => {
+  const { farRidgeShape, farRidgeGlsl } = await import('../src/terrain/farRidge.js');
+  const numbers = text => text.match(/\d+\.\d+|\d+/g).map(Number);
+  const body = (text, start) => text.slice(text.indexOf(start), text.indexOf('return', text.indexOf(start)));
+  const glsl = farRidgeGlsl();
+  const glslShape = glsl.slice(glsl.indexOf('float farRidgeShape'), glsl.indexOf('float farRidgeEnvelope'));
+  // Warp, crest trains, swells and train weights: same literals in the same order.
+  assert.deepEqual(numbers(body(glslShape, 'float wx')), numbers(body(farRidgeShape.toString(), 'const wx')));
+  const { template, field, source } = fakeField();
+  const material = makeFoliageMaterial(template, 'leaf', {}, { register() {} });
+  const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader };
+  material.onBeforeCompile(shader);
+  assert.ok(shader.vertexShader.includes(glslShape));
+  material.dispose(); field.dispose(); source.dispose();
 });
 
 test('representations share lazy LOD calculations and reuse ridge shape after camera and viewport changes', () => {

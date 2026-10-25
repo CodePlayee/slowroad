@@ -63,8 +63,15 @@ class App {
 
     const canvas = document.createElement('canvas');
     document.body.appendChild(canvas);
+    // three r185 always requests an alpha drawing buffer. Alpha-to-coverage
+    // foliage and feathered road edges write alpha < 1, which then lets the page
+    // background show through the canvas. The scene is fully opaque, so own the
+    // context and request an opaque buffer.
+    const context = canvas.getContext('webgl2', {
+      alpha: false, antialias: true, powerPreference: 'high-performance', stencil: false, depth: true,
+    });
     this.renderer = new THREE.WebGLRenderer({
-      canvas, antialias: true, powerPreference: 'high-performance', stencil: false,
+      canvas, context, antialias: true, powerPreference: 'high-performance', stencil: false,
     });
     this.quality = new RenderQuality({ deviceRatio: window.devicePixelRatio || 1,
       fixedRatio: this.opts.fixedRatio ? this.opts.pixelRatio : null, lodScale: this.opts.lodScale });

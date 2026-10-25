@@ -24,8 +24,10 @@ export class Heightfield {
       rwidth: (seed ^ 0x6ae90b13) | 0,
       moist: (seed ^ 0xd41c6e8b) | 0,
       rock: (seed ^ 0x0e5a92f7) | 0,
+      roll: (seed ^ 0x4b8e3a61) | 0,
     };
     this._o = {};
+    this._rv = {};
   }
 
   // ------------------------------------------------------------- primitives
@@ -44,7 +46,20 @@ export class Heightfield {
   /** Very-low-frequency base. The water table rides on this, so rivers run downhill. */
   smoothBase(x, z) { return this._base(x, z, this.relief(x, z)); }
 
-  _natural(x, z, r, base) {
+  /**
+   * Rolling hills on the 0.3-3 km scale: rounded swells that stand *above* the
+   * river table and fade out towards the channels, so rivers keep the valley
+   * floors and the land between them rises into hills instead of the water
+   * table riding over them.  `dist` is the channel distance (_channel).
+   */
+  _roll(x, z, r, dist) {
+    const fade = smoothstep(P.rollValleyNear, P.rollValleyFar, dist);
+    if (fade <= 0) return 0;
+    const n = clamp(0.5 + 0.5 * warpedFbm(x * P.rollFreq, z * P.rollFreq, this.s.roll, P.rollOctaves, P.rollWarp), 0, 1);
+    return P.rollAmp * (P.rollReliefFloor + (1 - P.rollReliefFloor) * r) * n * n * (3 - 2 * n) * fade;
+  }
+
+  _natural(x, z, r, base, dist) {
     const rw = smoothstep(P.ridgeReliefLo, P.ridgeReliefHi, r);
     const ridge = rw > 0.001
       ? (ridged(x * P.ridgeFreq, z * P.ridgeFreq, this.s.ridge, 5) - 0.33) * P.ridgeAmp * rw
@@ -52,13 +67,29 @@ export class Heightfield {
     const mid = fbm(x * P.midFreq, z * P.midFreq, this.s.mid, 4) * P.midAmp * (0.55 + 0.8 * r);
     const mid2 = fbm(x * P.mid2Freq, z * P.mid2Freq, this.s.mid ^ 0x4d, 3) * P.mid2Amp;
     const det = fbm(x * P.detailFreq, z * P.detailFreq, this.s.det, 3) * P.detailAmp;
-    return base + ridge + mid + mid2 + det;
+    return base + this._roll(x, z, r, dist) + ridge + mid + mid2 + det;
   }
 
   /** Full natural landform before any river or road surgery. */
   natural(x, z) {
     const r = this.relief(x, z);
-    return this._natural(x, z, r, this._base(x, z, r));
+    return this._natural(x, z, r, this._base(x, z, r), this._channel(x, z).dist);
+  }
+
+  _pot(x, z) {
+    return fbm(x * P.riverFreq, z * P.riverFreq, this.s.river, P.riverOctaves, 2.0, P.riverGain);
+  }
+
+  /** River potential A, its gradient and the metric channel distance |A| / |grad A| (scratch object). */
+  _channel(x, z) {
+    const e = 9, rv = this._rv;
+    rv.a = this._pot(x, z);
+    rv.ax = (this._pot(x + e, z) - this._pot(x - e, z)) / (2 * e);
+    rv.az = (this._pot(x, z + e) - this._pot(x, z - e)) / (2 * e);
+    let g = Math.hypot(rv.ax, rv.az);
+    if (g < P.riverGradMin) g = P.riverGradMin;
+    rv.dist = Math.abs(rv.a) / g;
+    return rv;
   }
 
   _pot(x, z) {
@@ -75,16 +106,10 @@ export class Heightfield {
   full(x, z, out = {}) {
     const r = clamp(0.5 + P.reliefSpread * fbm(x * P.reliefFreq, z * P.reliefFreq, this.s.relief, 3), 0, 1);
     const base = this._base(x, z, r);
-    const nat = this._natural(x, z, r, base);
 
     // ---- river: |A| / |grad A| turns a noise contour into a metric distance ----
-    const e = 9;
-    const a = this._pot(x, z);
-    const ax = (this._pot(x + e, z) - this._pot(x - e, z)) / (2 * e);
-    const az = (this._pot(x, z + e) - this._pot(x, z - e)) / (2 * e);
-    let g = Math.hypot(ax, az);
-    if (g < P.riverGradMin) g = P.riverGradMin;
-    const dist = Math.abs(a) / g;
+    const { a, ax, az, dist } = this._channel(x, z);
+    const nat = this._natural(x, z, r, base, dist);
 
     const wn = vnoise(x * P.riverWidthFreq, z * P.riverWidthFreq, this.s.rwidth);
     const half = lerp(P.riverHalfWidthMin, P.riverHalfWidthMax, wn * wn * (3 - 2 * wn));
@@ -121,14 +146,8 @@ export class Heightfield {
   ground(x, z) {
     const r = clamp(0.5 + P.reliefSpread * fbm(x * P.reliefFreq, z * P.reliefFreq, this.s.relief, 3), 0, 1);
     const base = this._base(x, z, r);
-    const nat = this._natural(x, z, r, base);
-    const e = 9;
-    const a = this._pot(x, z);
-    const ax = (this._pot(x + e, z) - this._pot(x - e, z)) / (2 * e);
-    const az = (this._pot(x, z + e) - this._pot(x, z - e)) / (2 * e);
-    let g = Math.hypot(ax, az);
-    if (g < P.riverGradMin) g = P.riverGradMin;
-    const dist = Math.abs(a) / g;
+    const dist = this._channel(x, z).dist;
+    const nat = this._natural(x, z, r, base, dist);
     if (dist > P.valleyHalfWidth) return nat;
     const wn = vnoise(x * P.riverWidthFreq, z * P.riverWidthFreq, this.s.rwidth);
     const half = lerp(P.riverHalfWidthMin, P.riverHalfWidthMax, wn * wn * (3 - 2 * wn));

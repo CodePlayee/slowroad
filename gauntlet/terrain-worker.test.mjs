@@ -94,6 +94,34 @@ test('adjacent terrain tiles share exact border heights and normals', () => {
   }
 });
 
+test('verge distance folds in the drop below a bridge deck but keeps approaches and abutments', () => {
+  // Road along z = 64 with its deck at y = 30. x < 32 is approach (bridge 0), x >= 96 is
+  // a full span over a bank 10 m below the deck, and 32 <= x < 96 is an abutment where
+  // the ground meets the deck.
+  const deckY = 30;
+  const ground = (x) => (x >= 96 ? deckY - 10 : deckY);
+  const bridge = (x) => (x < 32 ? 0 : x < 96 ? 0.5 : 1);
+  const world = {
+    ground,
+    route: { nearest: (x, z) => ({ y: deckY, dist: Math.abs(z - 64) }) },
+    sample(x, z, out) {
+      Object.assign(out, { y: ground(x), moisture: 0.6, rockiness: 0.5, riverDist: 100, channelHalf: 2,
+        waterY: 0, roadDist: Math.abs(z - 64), bridge: bridge(x) });
+    },
+  };
+  const data = finish(buildTerrainData(world, tile, options));
+  const N = options.resolution;
+  for (let j = 0; j <= N; j++) {
+    for (let i = 0; i <= N; i++) {
+      const x = i * 16, horizontal = Math.abs(j * 16 - 64);
+      const expected = Math.min(x >= 96 ? Math.hypot(horizontal, 10) : horizontal, 255);
+      assert.ok(Math.abs(data.roadDistances[j * (N + 1) + i] - expected) < 1e-5, `vertex ${i},${j}`);
+    }
+  }
+  const southSkirt = (N + 1) ** 2 + N;
+  assert.equal(data.roadDistances[southSkirt], data.roadDistances[N]);
+});
+
 function flatTile(y = 20) {
   const world = {
     ground: () => y,

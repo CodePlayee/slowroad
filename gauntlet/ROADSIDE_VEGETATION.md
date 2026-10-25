@@ -52,6 +52,21 @@ area than the requested roadside strip.
   increasing the number of tree candidates or special-casing route kilometres.
 - Increase species-specific tree heights to 13-30 m. The seed-7 audit mean is
   19.65 m, up from 13.50 m; 92% of sampled accepted trees are at least 15 m tall.
+- Roadside openings (blind-review gap "symmetric tree walls"): within 150 m of
+  the road, `roadsideOpening()` in `vegetation/biome.js` opens each road side
+  from its own along-road field (260 m knots, 90 m detail) plus a shared,
+  anti-correlated swing, so one side often opens to meadow while woodland
+  frames the other. A 48 m world-space term makes ragged bays and tongues;
+  opening depth varies 75-140 m and fades to closed by 150 m. Inside an
+  opening only isolated 36 m groves remain. Openings can only remove cover.
+  Trees, shrubs and terrain ecology share the field; candidates, road/water/
+  slope/altitude exclusions and remote forests are unchanged.
+  Exact-equation audit, 300 m windows, roots 10-80 m per side (seed 7 / 12 / 21):
+  sides below 25 trees/100 m 0.5% / 0% / 0.5% before, 20% / 18% / 21% after;
+  windows with at least one such side 1% / 0% / 1% before, 39% / 34% / 41% after;
+  both sides open at most 2%. Mean trees per 100 m (both sides) 130 to 90 on
+  seed 7; 89% of its windows keep at least 60. Trees in the 548 tree tiles
+  within 600 m of the seed-7 route drop from 157,226 to 141,497.
 
 ## Route Evidence
 

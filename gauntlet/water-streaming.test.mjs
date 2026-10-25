@@ -10,6 +10,7 @@ registerHooks({ load(url, context, next) {
 const { buildWaterData } = await import('../src/water/mesh-data.js');
 const { buildTerrainTileData, buildTerrainData } = await import('../src/terrain/mesh-data.js');
 const { WaterSystem } = await import('../src/water/water.js');
+const { WATER } = await import('../src/water/params.js');
 const finish = iterator => { let step; do { step = iterator.next(); } while (!step.done); return step.value; };
 const world = {
   seed: 7,
@@ -31,7 +32,9 @@ test('water buffers preserve topology, depth colors, normals and world-space UVs
     assert.deepEqual(Array.from(mesh.attributes.normal.array.slice(i * 3, i * 3 + 3)), [0, 1, 0]);
     assert.ok(Math.abs(data.uvs[i * 2] - (data.positions[i * 3] + 116) / 26) < 1e-6);
     assert.ok(Math.abs(data.uvs[i * 2 + 1] - (data.positions[i * 3 + 2] + 216) / 26) < 1e-6);
-    assert.ok(Math.abs(data.colors[i * 4 + 3] - (0.46 + (0.94 - 0.46) * 2 / 2.6)) < 1e-6);
+    const depthT = 2 / WATER.depthFade;
+    assert.ok(Math.abs(data.colors[i * 4 + 3] - (WATER.alphaShallow + (WATER.alphaDeep - WATER.alphaShallow) * depthT)) < 1e-6);
+    assert.ok(Math.abs(data.colors[i * 4 + 1] - (WATER.shallow[1] + (WATER.deep[1] - WATER.shallow[1]) * depthT)) < 1e-6);
   }
   const cloned = structuredClone(data, { transfer: Object.values(data).map(a => a.buffer) });
   assert.equal(data.positions.byteLength, 0);
@@ -61,4 +64,28 @@ test('prepared tiles reuse the exact terrain height grid and keep water sampling
   assert.deepEqual(prepared.water, finish(buildWaterData(world, 0, 0, 128, 24, () => 0)));
   const withoutWater = finish(buildTerrainTileData(world, tile, { resolution: 8, skirtDepth: 20 }));
   assert.equal(Object.hasOwn(withoutWater, 'water'), false);
+});
+
+test('sky reflection uses a world-space normal and a floored Fresnel mix before fog', async () => {
+  const THREE = await import('three');
+  const { registerFogMaterial } = await import('../src/atmosphere/fog.js');
+  const previous = globalThis.document;
+  globalThis.document = { createElement: () => ({ getContext: () => ({
+    createImageData: (w, h) => ({ data: new Uint8ClampedArray(w * h * 4) }), putImageData() {},
+  }) }) };
+  try {
+    const water = new WaterSystem(world, { register: registerFogMaterial });
+    const shader = { uniforms: {}, fragmentShader: THREE.ShaderLib.physical.fragmentShader };
+    water.material.onBeforeCompile(shader, {});
+    const fs = shader.fragmentShader;
+    assert.match(fs, /inverseTransformDirection\( normalize\( vNormal \), viewMatrix \)/);
+    assert.ok(fs.includes(`mix( ${WATER.reflectFloor.toFixed(3)}, ${WATER.reflectMax.toFixed(3)}, fres )`));
+    assert.ok(WATER.reflectFloor >= 0.08 && WATER.reflectFloor <= 0.10);
+    assert.ok(fs.indexOf('float refl') < fs.indexOf('#include <fog_fragment>'));
+    assert.ok(shader.uniforms.uFogColorHigh && shader.uniforms.uFogColorLow);
+    water.ripple.dispose();
+    water.material.dispose();
+  } finally {
+    globalThis.document = previous;
+  }
 });

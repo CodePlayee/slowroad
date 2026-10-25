@@ -85,7 +85,8 @@ export function* generatePopulation(world, kind, i, j) {
   const dx = config.tile / columns, dz = config.tile / rows;
   const seed = world.seed >>> 0, biomeSeed = seed ^ 0x2b7c1f03;
   const probeDistance = (kind === 'tree' ? config.roadDensityEnd : 150) + config.tile * Math.SQRT1_2;
-  const probeRoad = kind === 'tree' && Boolean(world.route?.nearest)
+  const roadsideKind = kind === 'tree' || kind === 'shrub';
+  const probeRoad = roadsideKind && Boolean(world.route?.nearest)
     && (world.route.nearest((i + 0.5) * config.tile, (j + 0.5) * config.tile, probeDistance)?.dist ?? Infinity) <= probeDistance;
   const sample = {}, gradient = { dx: 0, dz: 0 }, records = [];
   const surfaceSampler = kind === 'grass' ? createRoadsideSurfaceSampler(world) : null, surface = {};
@@ -111,7 +112,9 @@ export function* generatePopulation(world, kind, i, j) {
     // corridor once; the tile bound skips these searches in distant woodland.
     if (kind === 'tree') sample.roadDist = treeRoadDistance(world, x, z, sample.roadDist, probeRoad);
     const ambientCover = forestCover(x, z, biomeSeed);
-    const cover = kind === 'tree' ? roadsideTreeCover(world, x, z, sample.roadDist, ambientCover, biomeSeed, probeRoad) : ambientCover;
+    // Trees and shrubs share the roadside stands and openings, so scrub gathers on
+    // the ragged edges of a clearing instead of filling it like a forest interior.
+    const cover = roadsideKind ? roadsideTreeCover(world, x, z, sample.roadDist, ambientCover, biomeSeed, probeRoad) : ambientCover;
     // Supplemental trees close the canopy inside groves while leaving clearings
     // and the original scattered trees intact, rather than filling every hill.
     const plantingCover = kind === 'tree' && layer > 0 ? smoothstep(0.14, 0.54, cover) : cover;

@@ -19,6 +19,7 @@ const { TERRAIN: P } = await import('../src/terrain/params.js');
 const { makeTile, parentTile, childTile } = await import('../src/terrain/coverage.js');
 const { buildTerrainData } = await import('../src/terrain/mesh-data.js');
 const { GRASS_COVERAGE_GLSL } = await import('../src/vegetation/grassCoverage.js');
+const { MEADOW_FIELD_GLSL } = await import('../src/terrain/meadowField.js');
 const { WaterSystem } = await import('../src/water/water.js');
 const world = new World(7).build();
 
@@ -69,11 +70,12 @@ test('meadow root occlusion follows world-fixed turf composition without shading
   terrain.material.onBeforeCompile(shader);
   assert.equal(shader.uniforms.uMeadowContactStrength.value, 0.26);
   assert.ok(shader.fragmentShader.includes(GRASS_COVERAGE_GLSL));
+  assert.ok(shader.fragmentShader.includes(MEADOW_FIELD_GLSL), 'turf and grass models share the meadow patch/lodging field');
   const contact = shader.fragmentShader.match(/float meadowContact = [\s\S]*?;/)?.[0];
   assert.ok(contact);
   assert.match(contact, /meadowSurface \* \(1\.0 - litterWeight - mossWeight\)/);
   assert.match(contact, /0\.35 \+ 0\.65 \* understoryGrowth/);
-  assert.match(contact, /smoothstep\(uRoadScuffInner - 0\.15, uRoadScuffInner \+ 1\.05, vRoadDist\)/);
+  assert.match(contact, /\* roadTurf/);
   assert.doesNotMatch(contact, /grassRoadCoverage|grassViewCoverage|grassModelCoverage|vViewPosition|cameraPosition|Time/);
   assert.doesNotMatch(shader.fragmentShader, /grassModelCoverage/);
   assert.match(shader.fragmentShader, /1\.0 - clamp\(shore, 0\.0, 1\.0\)/);
@@ -93,8 +95,10 @@ test('meadow texture handoff keeps fixed world scales and protects existing surf
   assert.match(shader.fragmentShader, /mat2\( 0\.6, 0\.8, -0\.8, 0\.6 \) \* uv \* 0\.12/);
   assert.match(shader.fragmentShader, /texture2D\( uGrassDetail, coarseGrassUv \)/);
   assert.doesNotMatch(shader.fragmentShader, /textureHandoff/);
-  assert.match(shader.fragmentShader, /float meadowTexture = meadowSurface \* \(1\.0 - verge \* \(1\.0 - 0\.38 \* turfFray\)\)/);
-  assert.match(shader.fragmentShader, /smoothstep\(uRoadScuffInner - 0\.15, uRoadScuffInner \+ 1\.05, vRoadDist\)/);
+  assert.match(shader.fragmentShader, /float meadowTexture = meadowSurface \* roadTurf;/);
+  // Summer keeps the 0.10 tuft edge; under snow it widens into a soft slush ramp.
+  assert.match(shader.fragmentShader, /float tuftEdge = mix\(0\.10, 0\.40, clamp\(uSnowAmount, 0\.0, 1\.0\)\)/);
+  assert.match(shader.fragmentShader, /float roadTurf = smoothstep\(-tuftEdge, tuftEdge, tuftField - mix\(-0\.25, 1\.0, verge \* verge\)\)/);
   assert.match(shader.fragmentShader, /\(1\.0 - clamp\(shore, 0\.0, 1\.0\)\) \* \(1\.0 - rk\)/);
   assert.match(shader.fragmentShader, /float coarseGrassValue = dot\(coarseGrassDetail/);
   assert.match(shader.fragmentShader, /float fineGrassValue = dot\(grassDetail/);
@@ -120,18 +124,29 @@ test('meadow texture handoff keeps fixed world scales and protects existing surf
   assert.equal(terrain.scheduler.pending, 0, 'palette changes must not rebuild terrain');
 });
 
-test('the narrow worn shoulder interlocks with world-space turf detail instead of an extended apron', async t => {
+test('the narrow dirt rim interlocks with world-space turf tufts instead of an extended apron', async t => {
   const { terrain } = await fixture(t);
   const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader,
     fragmentShader: THREE.ShaderLib.standard.fragmentShader };
   terrain.material.onBeforeCompile(shader);
+  // Bare rim ends ~0.5 m past the pavement (half-pave 3.5 m); turf closes up within 1-2 m.
   assert.ok(P.roadScuffInner >= 4 && P.roadScuffInner < 4.5);
-  assert.ok(P.roadScuffOuter >= 7 && P.roadScuffOuter <= 8);
+  assert.ok(P.roadScuffOuter - P.roadScuffInner >= 1 && P.roadScuffOuter - P.roadScuffInner <= 2);
+  assert.equal(shader.uniforms.uRoadScuffInner.value, P.roadScuffInner);
   assert.equal(shader.uniforms.uRoadScuffOuter.value, P.roadScuffOuter);
   assert.match(shader.fragmentShader, /\(scuffNoise - 0\.5\) \* 1\.15 \+ \(micro - 0\.5\) \* 0\.30/);
-  assert.match(shader.fragmentShader, /uRoadScuffInner \+ 1\.40, roadEdge/);
+  assert.match(shader.fragmentShader, /uRoadScuffInner \+ 0\.45, roadEdge/);
   assert.match(shader.fragmentShader, /float turfFray = smoothstep\(0\.055, 0\.20, coarseGrassValue \* 0\.65 \+ fineGrassValue \* 0\.35\)/);
+  assert.match(shader.fragmentShader, /float tuftField = turfFray \* 0\.70 \+ scuffNoise \* 0\.30/);
+  // The thresholded blade fray settles to its mean once blades shrink toward a
+  // pixel, and snow buries it outright, so the rim never breaks into speckle.
+  assert.match(shader.fragmentShader, /turfFray = mix\(turfFray, 0\.5, max\(smoothstep\(0\.03, 0\.10, uvFootprint\), clamp\(uSnowAmount, 0\.0, 1\.0\)\)\)/);
+  assert.ok(shader.fragmentShader.indexOf('turfFray = mix(turfFray') < shader.fragmentShader.indexOf('float tuftField'));
+  // The rim is ordinary lit albedo whose mean matches the ribbon's uEdgeGravel.
+  assert.match(shader.fragmentShader, /vec3 rimSoil = mix\(uSoil \* 0\.62, uRock \* 0\.50, 0\.30\)/);
+  assert.match(shader.fragmentShader, /col = mix\(col, rimSoil, 1\.0 - roadTurf\)/);
   assert.doesNotMatch(shader.fragmentShader, /uRoadScuffInner \+ 7\.5/);
+  assert.equal((shader.fragmentShader.match(/texture2D\( uGrassDetail,/g) || []).length, 2, 'no extra samples');
   assert.equal(terrain.chunks.size, 0);
 });
 
@@ -146,7 +161,7 @@ test('winter accumulation has layered coverage and shaded relief in the existing
   assert.match(shader.fragmentShader, /snow = max\(snow, uSnowAmount \* snowShelf \* \(0\.78 \+ 0\.12 \* snowAccumulation - 0\.50 \* winterThin\)\)/);
   assert.match(shader.fragmentShader, /snowCol = mix\(packedSnow, snowCol,/);
   assert.match(shader.fragmentShader, /snow \*= 1\.0 - rk \* 0\.56/);
-  assert.match(shader.fragmentShader, /snow \*= 1\.0 - verge/);
+  assert.match(shader.fragmentShader, /snow \*= 1\.0 - \(1\.0 - roadTurf\)/);
   assert.match(shader.fragmentShader, /float terrainMicroHeight = mix\(turfMicroHeight, snowMounds \* 0\.025 \+ snowCrust \* 0\.003, snow\)/);
   assert.match(shader.fragmentShader, /smoothstep\(40\.0, 150\.0, length\(vViewPosition\)\)/);
   assert.ok(shader.fragmentShader.indexOf('vec3 terrainDx') > shader.fragmentShader.indexOf('#include <normal_fragment_maps>'));

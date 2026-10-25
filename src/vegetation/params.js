@@ -45,6 +45,24 @@ export const VEG = {
   speciesFreq: 0.0038,
   speciesCoherence: 0.80,    // 1 = pure stands, 0 = salt-and-pepper
 
+  // Roadside openings: each side of the road gets its own along-road field, so a
+  // stretch can be open meadow on one side while woodland frames the other (refs
+  // sr_01/03/04/13/22). Values are along-road metres measured on the centreline.
+  roadsideOpenScale: 260,    // knot spacing of the per-side opening field
+  roadsideOpenDetail: 90,    // shorter knots that break segments into bays
+  roadsideOpenSwing: 0.55,   // shared component that opens one side as the other closes
+  roadsideOpenLo: 0.47,      // field value where a side starts to open
+  roadsideOpenHi: 0.59,      // field value where a side is fully open
+  roadsideOpenEdgeScale: 48, // world-space ragged edge: bays, tongues, stray clumps
+  roadsideOpenEdgeAmp: 0.30,
+  roadsideOpenDepth: [75, 140], // lateral reach of an opening; fades to closed by 150 m
+  roadsideOpenDepthJitter: 40,
+  // Inside an opening, isolated clumps (not a scatter) keep it a meadow with groves.
+  roadsideGroveScale: 36,
+  roadsideGroveLo: 0.64,
+  roadsideGroveHi: 0.86,
+  roadsideGroveCover: 0.70,
+
   slopeLimitTree: 0.62,
   slopeLimitGrass: 0.82,
   slopeLimitShrub: 0.86,     // scrub holds slopes that trees and grass cannot

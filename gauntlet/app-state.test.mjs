@@ -97,7 +97,7 @@ test('zero-time vehicle updates refresh day/night appearance without advancing',
   const s = vehicle.s, speed = vehicle.speed;
   vehicle.atmo.palette.dayness = 0;
   vehicle.update(0);
-  assert.equal(vehicle.headlight.intensity, 55);
+  assert.equal(vehicle.headlight.intensity, VEHICLE.headlight.intensity);
   assert.equal(vehicle.assetMaterials[0].envMapIntensity, 0.6);
   vehicle.atmo.palette.dayness = 1;
   vehicle.update(0);

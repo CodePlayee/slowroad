@@ -1,0 +1,483 @@
+{
+ "judge": "kilo",
+ "pairs": [
+  {
+   "id": "Q01",
+   "winner": "B",
+   "scores": {
+    "A": {
+     "composition": 2,
+     "terrain": 1,
+     "road": 3,
+     "vegetation": 2,
+     "ground": 2,
+     "atmosphere": 2,
+     "lighting": 2,
+     "vehicle": 3,
+     "cleanliness": 2
+    },
+    "B": {
+     "composition": 4,
+     "terrain": 4,
+     "road": 4,
+     "vegetation": 3,
+     "ground": 3,
+     "atmosphere": 4,
+     "lighting": 4,
+     "vehicle": 4,
+     "cleanliness": 4
+    }
+   },
+   "comparability": {
+    "camera": "均为追尾视角，A 机位稍近车尾、B 车在右侧远一些，可比",
+    "time_weather": "均为夜间/入夜；A 全黑夜+星空，B 为天文黄昏残光，基本可比",
+    "season": "A 夏季绿地，B 夏末干草海岸，可比",
+    "scene": "A 平坦林间草地，B 海岸山路，场景类型不同（地形维度仍按画面缺陷评）",
+    "vehicle_hud": "两车均为轿跑/SUV，无 HUD，可比"
+   },
+   "reasons": "A：中景草地/路边散布多团灰白发光的灌木团块（放大 x≈850-1450,y≈480-560），不受夜光照约束像未着色精灵，十分刺眼；地形几乎完全平坦，树林为一排剪影无纵深；车灯只照亮右侧草坡一片，路面受光弱。B：左侧海面有暗淡反光，山体层叠剪影与天际残光形成空气透视，车头灯在路面形成真实光锥并照亮黄色弯道标志，路肩土带/干草过渡自然；缺点是整体偏暗、近景左下草丛几乎死黑。",
+   "material_gap": true,
+   "biggest_gap": {
+    "weaker": "A",
+    "region": "画面中部 y≈45-65% 路两侧草地上的灰白发光灌木团块",
+    "target": "夜间灌木应与周围植被同样受月光/车灯照明，呈暗色剪影而非自发光的灰白斑块；同时在远景加入起伏地形与天际轮廓"
+   },
+   "identity_guess": "B"
+  },
+  {
+   "id": "Q02",
+   "winner": "B",
+   "scores": {
+    "A": {
+     "composition": 2,
+     "terrain": 1,
+     "road": 3,
+     "vegetation": 3,
+     "ground": 3,
+     "atmosphere": 2,
+     "lighting": 2,
+     "vehicle": 3,
+     "cleanliness": 3
+    },
+    "B": {
+     "composition": 5,
+     "terrain": 5,
+     "road": 4,
+     "vegetation": 4,
+     "ground": 4,
+     "atmosphere": 4,
+     "lighting": 4,
+     "vehicle": 4,
+     "cleanliness": 4
+    }
+   },
+   "comparability": {
+    "camera": "均为追尾视角，B 机位略高，可比",
+    "time_weather": "均为晴天白昼，可比",
+    "season": "均为夏季，可比",
+    "scene": "A 平坦林间公路，B 丘陵湖景，场景地貌不同但同属乡村公路",
+    "vehicle_hud": "A SUV，B 轿跑；无 HUD"
+   },
+   "reasons": "A：地形完全平坦，左右两排树形成走廊，地平线被树完全挡住，无远景层次；左侧树林下地面是平涂浅灰绿无草地细节；路面有纵向模糊拖影纹理，路肩土带过窄；光照平、无明显阴影方向。B：近景草坡→中景围栏与针叶林→远景湖泊、农田拼块与远山，层次丰富且有空气透视；道路随地形起伏蜿蜒、虚线与路肩清晰；近景右下草丛质感好。",
+   "material_gap": true,
+   "biggest_gap": {
+    "weaker": "A",
+    "region": "画面中上部地平线 y≈35-50% 及两侧树林后方",
+    "target": "打开视野：加入连续起伏的中远景丘陵、田块与带空气透视的远山轮廓，林下地面应有草/土材质而非平涂色"
+   },
+   "identity_guess": "B"
+  },
+  {
+   "id": "Q03",
+   "winner": "A",
+   "scores": {
+    "A": {
+     "composition": 3,
+     "terrain": 4,
+     "road": 4,
+     "vegetation": 4,
+     "ground": 3,
+     "atmosphere": 3,
+     "lighting": 3,
+     "vehicle": 2,
+     "cleanliness": 3
+    },
+    "B": {
+     "composition": 3,
+     "terrain": 2,
+     "road": 3,
+     "vegetation": 3,
+     "ground": 3,
+     "atmosphere": 3,
+     "lighting": 2,
+     "vehicle": 3,
+     "cleanliness": 3
+    }
+   },
+   "comparability": {
+    "camera": "均为驾驶舱视角，可比",
+    "time_weather": "A 阴天，B 阴天薄雾，可比",
+    "season": "A 夏季海岸干草，B 秋季，季节不同",
+    "scene": "A 海岸山坡路，B 林间丘陵路",
+    "vehicle_hud": "A 简模深灰仪表台+外后视镜，B 精细中控屏方向盘但车内后视镜空白"
+   },
+   "reasons": "A：右侧山坡有清晰起伏轮廓、灌木与针叶树稀疏散布，左侧海平面与护栏、路肩砂土带过渡自然，后视镜有正确反射；缺点是驾驶舱为纯平灰色低模，天空灰平。B：中控屏和方向盘建模更好，但车内后视镜是空白浅灰矩形（无反射）；车外右侧草坡为平滑单坡面、几乎无起伏，左侧远景雾中树林尚有层次；路面有纵向条纹拖影，光照灰平无阴影。",
+   "material_gap": true,
+   "biggest_gap": {
+    "weaker": "B",
+    "region": "画面右上 车内后视镜区域 及右侧草坡 x≈55-100%,y≈35-65%",
+    "target": "后视镜应渲染后方路面反射；右侧坡地应有连续起伏和多尺度地形变化，而非单一平滑斜面"
+   },
+   "identity_guess": "A"
+  },
+  {
+   "id": "Q04",
+   "winner": "B",
+   "scores": {
+    "A": {
+     "composition": 3,
+     "terrain": 2,
+     "road": 3,
+     "vegetation": 3,
+     "ground": 3,
+     "atmosphere": 3,
+     "lighting": 3,
+     "vehicle": 4,
+     "cleanliness": 3
+    },
+    "B": {
+     "composition": 5,
+     "terrain": 5,
+     "road": 4,
+     "vegetation": 4,
+     "ground": 4,
+     "atmosphere": 4,
+     "lighting": 4,
+     "vehicle": 4,
+     "cleanliness": 4
+    }
+   },
+   "comparability": {
+    "camera": "均为追尾视角，B 机位更高更远，大体可比",
+    "time_weather": "A 黄昏晴朗薄雾，B 阴天飘雪暮色，时段相近天气不同",
+    "season": "A 夏季，B 冬季，不可比（只看材质质量）",
+    "scene": "A 林间缓坡公路，B 雪山丘陵弯道",
+    "vehicle_hud": "均为白色车，无 HUD"
+   },
+   "reasons": "A：两排针叶树夹道、远处雾化尚可，但地形只有右侧一个平缓斜坡，视野被树遮挡；路面有明显斜向重复条纹/拖影，近景左下路肩土带与草地衔接生硬；右侧草地纹理较好。B：左侧近景岩坡积雪质感、中景护栏随弯道延伸、远景层叠雪丘与针叶林在雪雾中渐隐，空气透视极佳；车灯照亮湿滑路面，路面车辙积雪材质可信；整体偏暗但动态范围合理。",
+   "material_gap": true,
+   "biggest_gap": {
+    "weaker": "A",
+    "region": "画面下半部路面 y≈55-100% 及地平线",
+    "target": "去除路面斜向重复条纹，使用连续沥青颗粒材质；并在中远景加入层叠起伏地形而非树墙"
+   },
+   "identity_guess": "B"
+  },
+  {
+   "id": "Q05",
+   "winner": "A",
+   "scores": {
+    "A": {
+     "composition": 3,
+     "terrain": 4,
+     "road": 4,
+     "vegetation": 4,
+     "ground": 3,
+     "atmosphere": 3,
+     "lighting": 3,
+     "vehicle": 2,
+     "cleanliness": 3
+    },
+    "B": {
+     "composition": 3,
+     "terrain": 2,
+     "road": 3,
+     "vegetation": 3,
+     "ground": 3,
+     "atmosphere": 3,
+     "lighting": 3,
+     "vehicle": 3,
+     "cleanliness": 3
+    }
+   },
+   "comparability": {
+    "camera": "均为驾驶舱视角，可比",
+    "time_weather": "A 阴天，B 晴天，天气不同",
+    "season": "均为夏季",
+    "scene": "A 海岸山坡路，B 林间公路",
+    "vehicle_hud": "A 简模驾驶舱，B 精细 Tesla 式内饰但后视镜空白"
+   },
+   "reasons": "A：同 Q03 A，海岸、山坡植被分布自然，护栏/路肩过渡好，后视镜有反射；驾驶舱纯平灰色低模是主要扣分。B：内饰精细，但车内后视镜为空白矩形；外景右侧草坡是平滑大斜面、无起伏，两侧树林为走廊式，远景被挡；路面有纵向拖影纹理；晴天但树与地面几乎无投影，光照平。",
+   "material_gap": true,
+   "biggest_gap": {
+    "weaker": "B",
+    "region": "挡风玻璃外 右侧草坡 x≈55-100%,y≈40-62% 与左侧路面",
+    "target": "坡面应有起伏与多尺度细节、树木应在草地上投下方向一致的阴影；修复后视镜反射"
+   },
+   "identity_guess": "A"
+  },
+  {
+   "id": "Q06",
+   "winner": "A",
+   "scores": {
+    "A": {
+     "composition": 5,
+     "terrain": 5,
+     "road": 4,
+     "vegetation": 5,
+     "ground": 4,
+     "atmosphere": 5,
+     "lighting": 4,
+     "vehicle": 3,
+     "cleanliness": 4
+    },
+    "B": {
+     "composition": 1,
+     "terrain": 2,
+     "road": 2,
+     "vegetation": 3,
+     "ground": 2,
+     "atmosphere": 3,
+     "lighting": 3,
+     "vehicle": "N/A",
+     "cleanliness": 1
+    }
+   },
+   "comparability": {
+    "camera": "均为高处俯视/远景机位，但 B 的相机被近景树冠遮挡，可比",
+    "time_weather": "A 晴天薄雾，B 阴天薄雾，可比",
+    "season": "均为夏季",
+    "scene": "A 海岸山路，B 林间公路",
+    "vehicle_hud": "A 远处小白车可见，B 车辆仅在右侧被树枝遮挡大半，车辆维度对 B 记 N/A"
+   },
+   "reasons": "A：海岸弯道俯视，左侧裸土陡坡、中景层叠植被山体、右侧海面波纹、远景山体渐隐，构图与空气透视俱佳，植被种类丰富且接地自然。B：相机直接穿进/贴近树冠，前景巨大橡树叶和针叶占据画面下 2/3，近景叶片半透明发白（贴面穿模），道路与车辆仅从树缝中露出；远景针叶林层次尚可但地形平坦。",
+   "material_gap": true,
+   "biggest_gap": {
+    "weaker": "B",
+    "region": "画面下 2/3 前景树冠（x≈10-80%,y≈40-100%）",
+    "target": "高处镜头应避开植被碰撞，保证道路与车辆为视觉主体；近景树叶不应穿过相机或呈半透明发白"
+   },
+   "identity_guess": "A"
+  },
+  {
+   "id": "Q07",
+   "winner": "B",
+   "scores": {
+    "A": {
+     "composition": 3,
+     "terrain": 2,
+     "road": 4,
+     "vegetation": 4,
+     "ground": 4,
+     "atmosphere": 3,
+     "lighting": 3,
+     "vehicle": 4,
+     "cleanliness": 3
+    },
+    "B": {
+     "composition": 5,
+     "terrain": 5,
+     "road": 4,
+     "vegetation": 4,
+     "ground": 4,
+     "atmosphere": 5,
+     "lighting": 5,
+     "vehicle": 4,
+     "cleanliness": 4
+    }
+   },
+   "comparability": {
+    "camera": "均为追尾视角，B 更贴近车尾，基本可比",
+    "time_weather": "A 傍晚晴，B 日落粉色晚霞，时段相近",
+    "season": "均为夏/夏末",
+    "scene": "A 林间直路，B 丘陵乡间路",
+    "vehicle_hud": "A SUV 远，B 橙色轿跑近；HUD 三个深色矩形位置相同，不评分"
+   },
+   "reasons": "A：直路+两排树形成走廊，地平线处仅一小块远山，地形是左侧单一草坡；草地材质不错，路肩土带有过渡，但整体光照平、天空单调。B：日落天空层次丰富，远景拼块状农田与层叠丘陵在暖色空气透视中渐隐，路边石墙、干草与蕨类近中景丰富，车身反射暖光。",
+   "material_gap": true,
+   "biggest_gap": {
+    "weaker": "A",
+    "region": "画面中部地平线 y≈38-45% 两排树之间",
+    "target": "打开远景：加入层叠丘陵与田块、受日落光照的空气透视，而不是被两排树墙封闭的走廊"
+   },
+   "identity_guess": "B"
+  },
+  {
+   "id": "Q08",
+   "winner": "A",
+   "scores": {
+    "A": {
+     "composition": 4,
+     "terrain": 3,
+     "road": 4,
+     "vegetation": 5,
+     "ground": 4,
+     "atmosphere": 3,
+     "lighting": 3,
+     "vehicle": 3,
+     "cleanliness": 4
+    },
+    "B": {
+     "composition": 3,
+     "terrain": 1,
+     "road": 3,
+     "vegetation": 3,
+     "ground": 2,
+     "atmosphere": 3,
+     "lighting": 2,
+     "vehicle": 3,
+     "cleanliness": 3
+    }
+   },
+   "comparability": {
+    "camera": "均为追尾视角，A 车更远",
+    "time_weather": "A 阴天，B 晴天多云，天气不同",
+    "season": "均为秋季，可比",
+    "scene": "A 林间弯道，B 平原林间公路",
+    "vehicle_hud": "A 远处红车，B 近处白 SUV；无 HUD"
+   },
+   "reasons": "A：密集秋色落叶松林、右侧深色云杉、近景蕨类与草丛、护栏随 S 弯延伸，植被密度与色彩层次优秀；画面偏暗、天空灰。B：地形平坦，左侧树林下地面为平涂灰白（无草地/落叶材质），树木稀疏均匀排列如走廊；右侧干草地纹理尚可但大片均一；晴天却几乎没有投影，整体发灰褪色。",
+   "material_gap": true,
+   "biggest_gap": {
+    "weaker": "B",
+    "region": "画面左中部 x≈0-45%,y≈42-55% 林下地面",
+    "target": "林下地面应有落叶/草/土的连续材质与树干接触阴影，而不是平涂灰白；地形应有起伏"
+   },
+   "identity_guess": "A"
+  },
+  {
+   "id": "Q09",
+   "winner": "A",
+   "scores": {
+    "A": {
+     "composition": 3,
+     "terrain": 4,
+     "road": 4,
+     "vegetation": 5,
+     "ground": 5,
+     "atmosphere": 3,
+     "lighting": 3,
+     "vehicle": 4,
+     "cleanliness": 4
+    },
+    "B": {
+     "composition": 4,
+     "terrain": 2,
+     "road": 3,
+     "vegetation": 3,
+     "ground": 3,
+     "atmosphere": 3,
+     "lighting": 2,
+     "vehicle": 3,
+     "cleanliness": 3
+    }
+   },
+   "comparability": {
+    "camera": "均为追尾视角，A 有多辆车",
+    "time_weather": "A 阴天，B 晴天，天气不同",
+    "season": "均为夏季",
+    "scene": "A 林荫道，B 湖畔丘陵",
+    "vehicle_hud": "A 多车，B 单 SUV；无 HUD"
+   },
+   "reasons": "A：高大阔叶树冠、桦树干、石墙、水仙花和茂密草坡，植被与地表细节丰富，道路双白线与坡顶起伏自然；缺点是天空挡住、远景少。B：远景构图更开阔，但湖面是饱和纯蓝平面无反射/无深浅变化，丘陵为平滑低多边形坡面、树木点状均匀撒布；路面纵向条纹拖影明显；晴天无投影，光照平。",
+   "material_gap": true,
+   "biggest_gap": {
+    "weaker": "B",
+    "region": "画面中部湖面 x≈40-80%,y≈40-48% 与远处丘陵坡面",
+    "target": "水面应有天空反射、近岸深浅变化与波纹；丘陵坡面应有多尺度起伏与植被聚簇而非均匀散点"
+   },
+   "identity_guess": "A"
+  },
+  {
+   "id": "Q10",
+   "winner": "A",
+   "scores": {
+    "A": {
+     "composition": 5,
+     "terrain": 5,
+     "road": 4,
+     "vegetation": 4,
+     "ground": 4,
+     "atmosphere": 5,
+     "lighting": 4,
+     "vehicle": 4,
+     "cleanliness": 4
+    },
+    "B": {
+     "composition": 3,
+     "terrain": 1,
+     "road": 2,
+     "vegetation": 3,
+     "ground": 2,
+     "atmosphere": 2,
+     "lighting": 2,
+     "vehicle": 3,
+     "cleanliness": 2
+    }
+   },
+   "comparability": {
+    "camera": "均为追尾视角，A 机位更高",
+    "time_weather": "A 阴天飘雪暮色，B 阴天白昼",
+    "season": "均为冬季，可比",
+    "scene": "A 雪山丘陵弯道，B 平坦雪原公路",
+    "vehicle_hud": "均为白色车，无 HUD"
+   },
+   "reasons": "A：岩坡积雪、护栏、层叠雪丘与针叶林雪雾渐隐，车灯照亮路面，空间深度极佳。B：地形完全平坦；路面为重复斜向/纵向灰白拖影；右侧路肩是像素噪点状碎石带（放大 x≈800-1300,y≈560-1080 可见明显噪点）；雪地为平坦白色平面上插稀疏草片；天空与雪地同色、无阴影，光照扁平。",
+   "material_gap": true,
+   "biggest_gap": {
+    "weaker": "B",
+    "region": "画面右下路肩与雪地 x≈42-100%,y≈55-100%",
+    "target": "路肩应为连续的积雪/碎石过渡带而非像素噪点，雪地应有起伏、积雪覆盖的草丛与阴影，路面需有车辙积雪材质"
+   },
+   "identity_guess": "A"
+  }
+ ],
+ "top_recurring_gaps": [
+  {
+   "rank": 1,
+   "weaker_side_pattern": "平坦地形+树墙走廊，缺少中远景层次（SUV+木围栏那一类画面）",
+   "pairs": [
+    "Q02",
+    "Q04",
+    "Q07",
+    "Q08",
+    "Q10",
+    "Q01",
+    "Q03",
+    "Q05"
+   ],
+   "region": "画面中部地平线带 y≈35-55% 及两侧树后方",
+   "target": "用连续起伏的丘陵/山体替代平地，打开地平线并加入中景田块、远景山脊轮廓与空气透视渐隐"
+  },
+  {
+   "rank": 2,
+   "weaker_side_pattern": "光照与大气扁平：晴天无方向性投影、整体发灰低对比，夜景植被自发光",
+   "pairs": [
+    "Q02",
+    "Q05",
+    "Q08",
+    "Q09",
+    "Q10",
+    "Q03",
+    "Q01"
+   ],
+   "region": "全画面，尤其树下地面、草坡与天空",
+   "target": "引入明确太阳方向的投影与明暗结构、按距离增强雾/空气透视；夜间植被受同一光照模型约束，不出现灰白发光团块"
+  },
+  {
+   "rank": 3,
+   "weaker_side_pattern": "道路与地表材质：路面重复纵/斜向拖影纹理，路肩像素噪点或生硬边，林下地面平涂",
+   "pairs": [
+    "Q04",
+    "Q10",
+    "Q09",
+    "Q02",
+    "Q08",
+    "Q05",
+    "Q03"
+   ],
+   "region": "画面下半部路面与路肩 y≈55-100%；林下地面",
+   "target": "沥青用无重复的颗粒/修补材质，路肩做连续土/碎石/草过渡带，林下地面加落叶草土材质与接触阴影"
+  }
+ ]
+}

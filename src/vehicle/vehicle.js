@@ -7,6 +7,8 @@ import { crossSection } from '../world/world.js';
 import { clamp, lerp } from '../core/rng.js';
 import { loadVehicleAsset } from './asset.js';
 import { animateWheels } from './wheels.js';
+import { createHeadlight, createTailSpill } from './lamps.js';
+import { updateRearMirror } from './mirror.js';
 
 // Low body is a tapered longitudinal mesh.  Keeping the shoulder below the cabin
 // prevents an opaque extruded side profile from swallowing the glazing.
@@ -56,6 +58,11 @@ function panelGeometry(points) {
   return g;
 }
 
+// Smallest visible cabin depth from the eye is 0.255 m (supplied GLB); 1.45 puts
+// it at 0.37 m, beyond the 0.35 m near plane. Visible cabin surfaces stay in
+// front of the road plane seen along the same rays up to a factor of 1.86.
+const COCKPIT_CABIN_SCALE = 1.45;
+
 export class Vehicle {
   constructor(world, atmo) {
     this.world = world;
@@ -75,6 +82,7 @@ export class Vehicle {
     const lampF = new THREE.MeshStandardMaterial({ color: 0xf2f2ee, emissive: 0xfff3d8, emissiveIntensity: 0.4, roughness: 0.2 });
     for (const m of [bodyMat, glassMat, tyreMat, rimMat, trimMat, chromeMat, plateMat, lampR, lampF]) atmo.register(m);
     this.lampF = lampF;
+    this.lampR = lampR;
 
     const body = new THREE.Mesh(lowerBodyGeometry(), bodyMat);
     body.castShadow = true; body.receiveShadow = true;
@@ -221,11 +229,12 @@ export class Vehicle {
     this.interior.traverse((obj) => { obj.userData.interior = true; });
     this.interior.visible = false;
 
-    // headlight cones
-    this.headlight = new THREE.SpotLight(0xfff0d4, 0, 90, 0.42, 0.55, 1.2);
-    this.headlight.position.set(0, 0.66, 2.1);
-    this.headlight.target.position.set(0, 0.0, 30);
-    this.group.add(this.headlight, this.headlight.target);
+    // Low-beam headlight (cookie-shaped SpotLight) and the tail lamps' faint
+    // red spill onto the road and rear bodywork.
+    this.headlight = createHeadlight();
+    this.tailSpill = createTailSpill();
+    this.group.add(this.headlight, this.headlight.target, this.tailSpill);
+    this.lampMaterials = [];
 
     this.s = this.route.kmToS(0);
     this.speed = V.cruiseKph / 3.6;
@@ -235,6 +244,7 @@ export class Vehicle {
     this._q = {};
     this.assetWheels = [];
     this.assetMaterials = [];
+    this.rearMirror = null;
     this.snapTo(this.s);
     this.assetReady = false;
     this.assetError = null;
@@ -310,13 +320,20 @@ export class Vehicle {
 
     const night = 1 - (this.atmo.palette.dayness ?? 1);
     const on = night > 0.35;
-    this.headlight.intensity = on ? 55 : 0;
+    this.headlight.intensity = on ? V.headlight.intensity : 0;
     this.lampF.emissiveIntensity = on ? 2.4 : 0.35;
+    if (this.lampR) this.lampR.emissiveIntensity = on ? V.tailLight.emissive : 0.9;
+    if (this.tailSpill) this.tailSpill.intensity = on ? V.tailLight.spill : 0;
+    for (const material of this.lampMaterials || []) {
+      material.emissiveIntensity = on
+        ? (material.userData.lampRole === 'tail' ? V.tailLight.emissive : V.headlampEmissive) : 0;
+    }
     if (this.assetEnvironment?.update?.(this.atmo)) {
       for (const material of this.assetMaterials) material.envMap = this.assetEnvironment.texture;
     }
     // The baked sky already contains day/night radiance; do not dim it twice.
     for (const material of this.assetMaterials) material.envMapIntensity = 0.6;
+    if (this.rearMirror) updateRearMirror(this.rearMirror, this.atmo, this.s);
   }
 
   setCockpit(v) {
@@ -328,6 +345,17 @@ export class Vehicle {
       if (this.assetReady && obj.userData.fallback) { obj.visible = false; return; }
       obj.visible = !v || !!obj.userData.interior;
     });
+    // The headliner and upper door frame sit ~0.25 m from the driver's eye,
+    // inside the camera's 0.35 m near plane, which cut them open (sky and a
+    // stray black trim triangle above the A-pillar). Scaling the cabin about
+    // the eye leaves its projection unchanged and moves every visible surface
+    // beyond the near plane; only interior meshes are drawn in this mode.
+    const base = this.assetBase;
+    if (base) {
+      const k = v ? COCKPIT_CABIN_SCALE : 1;
+      this.asset.scale.setScalar(base.scale * k);
+      this.asset.position.copy(base.position).sub(this.cockpitEye).multiplyScalar(k).add(this.cockpitEye);
+    }
   }
 
   cockpitPose(pos, aim) {

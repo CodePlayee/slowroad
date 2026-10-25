@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Open-world scenic driving — the journey, not the driving sim.",
   "type": "commonjs",
+  "engines": {
+    "node": ">=22.15"
+  },
   "scripts": {
     "dev": "vite --port 5188 --strictPort",
     "build": "vite build",

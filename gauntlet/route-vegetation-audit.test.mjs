@@ -3,6 +3,7 @@ import test from 'node:test';
 import { auditRouteVegetation, auditQueuedPriority } from './route-vegetation-audit.mjs';
 
 const { POPULATION, auditRoadsideTreeCover } = await import('../src/vegetation/population.js');
+const { roadsideOpening } = await import('../src/vegetation/biome.js');
 const report = auditRouteVegetation({ seeds: [7, 12, 31], stepKm: 2, otherStepKm: 4 });
 
 for (const route of report.routes) test(`seed ${route.seed} retains tall roadside woodland across the whole route`, () => {
@@ -42,6 +43,34 @@ test('roadside cover extends beyond terrain carving and fades without moving or 
   assert.equal(queries, 1);
   assert.equal(auditRoadsideTreeCover(world, x, 0, Infinity, 0.25, seed, false), 0.25);
   assert.equal(queries, 1, 'far tiles must avoid unnecessary per-candidate road queries');
+});
+
+test('roadside openings alternate between independent road sides and stay within the roadside band', () => {
+  for (const routeSeed of [7, 12, 31]) {
+    const seed = routeSeed ^ 0x2b7c1f03;
+    let samples = 0, left = 0, right = 0, both = 0, one = 0, sl = 0, sr = 0, slr = 0, sll = 0, srr = 0;
+    for (let s = 0; s < 30000; s += 10) {
+      const l = roadsideOpening(s, -1, s, -40, 40, seed), r = roadsideOpening(s, 1, s, 40, 40, seed);
+      samples++; left += l > 0.5; right += r > 0.5; both += l > 0.5 && r > 0.5; one += (l > 0.5) !== (r > 0.5);
+      sl += l; sr += r; slr += l * r; sll += l * l; srr += r * r;
+      assert.equal(roadsideOpening(s, -1, s, -150, 150, seed), 0);
+      assert.equal(roadsideOpening(s, 1, s, 150, 150, seed), 0);
+    }
+    for (const fraction of [left / samples, right / samples]) assert.ok(fraction > 0.2 && fraction < 0.65, `${routeSeed} side open ${fraction}`);
+    assert.ok(one > both * 2.5, `${routeSeed} one-sided openings must dominate (${one} vs ${both})`);
+    const covariance = slr / samples - sl / samples * sr / samples;
+    assert.ok(covariance < 0, `${routeSeed} the two sides must not mirror each other`);
+  }
+  const seed = 7 ^ 0x2b7c1f03;
+  let cleared = 0;
+  for (let s = 0; s < 4000; s += 25) for (const side of [-1, 1]) {
+    const x = s, z = side * 40, closed = auditRoadsideTreeCover({}, x, z, 40, 0.9, seed);
+    const world = { route: { nearest: () => ({ dist: 40, s, side }) } };
+    const cover = auditRoadsideTreeCover(world, x, z, 40, 0.9, seed);
+    assert.ok(cover >= 0 && cover <= closed, 'an opening may only remove roadside woodland');
+    if (cover < closed * 0.5) cleared++;
+  }
+  assert.ok(cleared > 0, 'openings must clear dense ambient forest, not only the roadside floor');
 });
 
 test('approaching an already queued tree tile refreshes its worker priority', () => {

@@ -42,6 +42,9 @@ export const fogUniforms = {
   // x = aerial desaturation, y = dark-pixel exponent, z = mist tint blend,
   // w = perceptual mix gamma (see the note in fog_fragment)
   uAerial: { value: new THREE.Vector4(0.85, 0.74, 0.5, 3.4) },
+  // distance-only far aerial term: x = start (m), y = full (m), z = strength.
+  // Closes the far ridge rows into the sky without veiling the 1-3 km field.
+  uAerialFar: { value: new THREE.Vector3(2500, 9000, 0.30) },
   uMistColor: { value: new THREE.Color(0.82, 0.84, 0.88) },
 
   // ---------------------------------------------------------------------------------
@@ -92,6 +95,7 @@ export function installFog() {
   uniform vec4 uHazeA;
   uniform vec4 uHazeB;
   uniform vec4 uAerial;
+  uniform vec3 uAerialFar;
   uniform vec3 uMistColor;
   uniform vec3 uFogColorHigh;   // compat hook consumed by src/water/water.js
   uniform vec3 uFogColorLow;    // compat hook consumed by src/water/water.js
@@ -125,11 +129,9 @@ ${SKY_FUNCS}
   float odB = atmoOpticalDepth( uHazeB.x, uHazeB.y, uHazeB.z, cameraPosition.y, fgV.y, fgL );
   float fgF = 1.0 - exp( -max( odA + odB, 0.0 ) );
   fgF = max( fgF, 1.0 - exp( -uHazeA.w * fgL ) );
-  // Keep the near road and vegetation contrast intact, but close the valley's
-  // far tree line progressively into blue-gray air. This distance-only term
-  // creates the reference's separate ridge steps without changing terrain or
-  // camera fixtures.
-  float farPerspective = smoothstep( 420.0, 1900.0, fgL ) * 0.22;
+  // Distance-only veil that starts past the middle field: the 1-3 km ridges keep
+  // their darker value step while the far rows close progressively into the sky.
+  float farPerspective = uAerialFar.z > 0.0 ? smoothstep( uAerialFar.x, uAerialFar.y, fgL ) * uAerialFar.z : 0.0;
   fgF = 1.0 - ( 1.0 - fgF ) * ( 1.0 - farPerspective );
   fgF = clamp( fgF, 0.0, 1.0 );
 

@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { makeRng } from '../core/rng.js';
 import { GRASS_COVERAGE, GRASS_COVERAGE_GLSL, grassRoadCoverage, grassViewCoverage, grassWinterExposure } from './grassCoverage.js';
+import { SURFACE_HASH_GLSL } from '../core/shaderNoise.js';
+import { MEADOW_FIELD_GLSL } from '../terrain/meadowField.js';
 
 const GRASS_LAYERS = [
   { blades: 24, basalBlades: 18, rows: [0, 0.4, 0.75], height: [0.52, 0.76], halfWidth: [0.035, 0.052], radius: [0.06, 0.62], lean: [0.20, 0.34], shade: 0.88 },
@@ -12,7 +14,13 @@ const LOCAL_PADDING = 0.16;
 export const GRASS_RENDER_CELL = 16;
 export const GRASS_DENSITY = Object.freeze({ low: 4, high: 26, minimum: 0.25, transition: 0.04,
   nearStart: 28, nearEnd: 56 });
-// Blade albedo stays independent of the ground cover, which is deliberately flatter.
+// Shading/shape response to the shared meadow field. Placement is untouched:
+// clusters (~3 m) and lodged swaths only change tint, length and lean.
+export const GRASS_SWARD = Object.freeze({ clusterScale: 3.2, clusterHeight: [0.84, 1.04],
+  clusterTint: Object.freeze([[0.88, 0.93, 0.90], [1.10, 1.05, 0.86]]), tuftHue: 0.06,
+  lodgeLean: 0.16, lodgeShorten: 0.18 });
+// Blade palettes stay separate from the flatter ground palette; the shared
+// meadow field (meadowField.js) applies the same patch tint and sheen to both.
 const GRASS_PALETTES = {
   spring: { lush: [0.075, 0.285, 0.030], dry: [0.220, 0.330, 0.055], tip: [0.550, 0.660, 0.140], seed: [0.24, 0.36, 0.07], seedGrowth: 0.35 },
   summer: { lush: [0.075, 0.245, 0.024], dry: [0.240, 0.310, 0.055], tip: [0.620, 0.680, 0.140], seed: [0.48, 0.43, 0.16], seedGrowth: 1 },
@@ -225,7 +233,7 @@ uniform vec3 uGrassSeedTint;
 uniform float uGrassSeedGrowth;
 uniform float uGrassSnow;
 uniform float uGrassDensity;
-` + GRASS_COVERAGE_GLSL;
+` + GRASS_COVERAGE_GLSL + SURFACE_HASH_GLSL + MEADOW_FIELD_GLSL;
 
 const VERTEX_BODY = /* glsl */`
   vec3 grassRoot = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
@@ -256,6 +264,13 @@ const VERTEX_BODY = /* glsl */`
   float winterHeight = aBladeParam.w < 0.5 ? 0.12 : (aBladeParam.w < 1.5 ? 0.58 : 0.28);
   transformed.y *= mix(1.0, winterHeight * (0.88 + 0.12 * grassBladeVariation), uGrassSnow);
   transformed.xz += vec2(0.56, 0.83) * uGrassSnow * 0.04 * aBladeParam.x * aBladeParam.x;
+  // Lodged swaths lay the upper blade down the shared world wind direction,
+  // mapped into this instance's yawed frame; roots stay where they were placed.
+  mat4 grassWorld = modelMatrix * instanceMatrix;
+  vec2 grassLodgeLocal = vec2(dot(MEADOW_WIND, normalize(grassWorld[0].xz)), dot(MEADOW_WIND, normalize(grassWorld[2].xz)))
+    * grassHeight / max(length(grassWorld[0].xyz), 0.05);
+  transformed.xz += grassLodgeLocal * ${GRASS_SWARD.lodgeLean.toFixed(3)} * grassSward.z * aBladeParam.x * aBladeParam.x
+    * mix(1.0, 0.5, uGrassSnow);
   float grassPhase = uGrassTime * 0.8 + grassRoot.x * 0.025 + grassRoot.z * 0.019 + iGrassStyle.w * 0.18;
   float grassWind = (sin(grassPhase) + 0.24 * sin(grassPhase * 1.63)) * 0.036;
   grassWind *= aBladeParam.x * aBladeParam.x * smoothstep(4.0, 12.0, grassPixels) * mix(1.0, 0.25, uGrassSnow);
@@ -291,22 +306,36 @@ export class GrassField {
         .replace('#include <common>', '#include <common>\n' + VERTEX_HEAD)
         .replace('#include <color_vertex>', `#include <color_vertex>
           float grassBladeVariation = sin(iGrassStyle.w + aBladeParam.z * 6.2831853);
+          // Shared meadow field at the tuft root plus a ~3 m cluster octave.
+          vec3 grassFieldRoot = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+          vec3 grassSward = meadowSward(grassFieldRoot.xz, iGrassStyle.x, 1.0);
+          float grassCluster = meadowNoise(grassFieldRoot.xz * ${(1 / GRASS_SWARD.clusterScale).toFixed(5)} + vec2(17.3, -5.1));
+          float grassClusterHeight = (${GRASS_SWARD.clusterHeight[0].toFixed(3)} + ${(GRASS_SWARD.clusterHeight[1] - GRASS_SWARD.clusterHeight[0]).toFixed(3)} * grassCluster)
+            * (1.0 - ${GRASS_SWARD.lodgeShorten.toFixed(3)} * grassSward.z);
           float grassTuftLean = sin(iGrassStyle.w * 0.61) * 0.28;
           float grassShapeAngle = grassTuftLean + grassBladeVariation * 0.22;
           vec2 grassShapeRotation = vec2(cos(grassShapeAngle), sin(grassShapeAngle));
-          float grassShapeLength = 0.90 + 0.10 * (0.65 * (0.5 + 0.5 * sin(iGrassStyle.w * 0.73))
-            + 0.35 * (0.5 + 0.5 * sin(iGrassStyle.w * 0.73 + aBladeParam.z * 17.17)));
+          float grassShapeLength = (0.90 + 0.10 * (0.65 * (0.5 + 0.5 * sin(iGrassStyle.w * 0.73))
+            + 0.35 * (0.5 + 0.5 * sin(iGrassStyle.w * 0.73 + aBladeParam.z * 17.17)))) * grassClusterHeight;
           float grassShapeLean = 0.84 + 0.16 * (0.5 + 0.5 * grassBladeVariation);
           vec3 grassTint = mix(uGrassDry, uGrassLush, clamp(iGrassStyle.x * 0.86 + 0.08, 0.0, 1.0));
           float grassTip = smoothstep(0.42, 1.0, aBladeParam.x);
           float grassWarmth = grassTip * (0.36 + (1.0 - clamp(iGrassStyle.x, 0.0, 1.0)) * 0.26);
           grassTint = mix(grassTint, uGrassTip, grassWarmth);
           grassTint *= (0.90 + iGrassStyle.z * 0.20) * (1.0 - iGrassStyle.y * 0.16) * (1.0 + grassBladeVariation * 0.065);
+          // Same patch tint and lodged sheen as the turf, then cluster and per-tuft hue.
+          grassTint *= meadowTint(grassSward) * meadowSheen(grassFieldRoot.xz, cameraPosition, grassSward.z);
+          grassTint *= mix(vec3(${GRASS_SWARD.clusterTint[0].map(v => v.toFixed(2)).join(', ')}),
+            vec3(${GRASS_SWARD.clusterTint[1].map(v => v.toFixed(2)).join(', ')}), grassCluster);
+          grassTint *= 1.0 + vec3(${GRASS_SWARD.tuftHue.toFixed(3)}, 0.0, ${(-1.6 * GRASS_SWARD.tuftHue).toFixed(3)}) * sin(iGrassStyle.w * 2.31 + 0.7);
           float grassFrost = (aBladeParam.w < 0.5 ? 0.62 : (aBladeParam.w < 1.5 ? 0.16 : 0.40))
             * (0.72 + clamp(iGrassStyle.z, 0.0, 1.0) * 0.28) * (0.75 + 0.25 * grassTip);
           grassTint = mix(grassTint, vec3(0.69, 0.74, 0.75), uGrassSnow * grassFrost);
           if (aBladeParam.w > 2.5) grassTint = mix(grassTint, uGrassSeedTint, aBladeParam.w > 3.5 ? 0.85 : 0.32);
-          vColor.rgb *= grassTint;`)
+          vColor.rgb *= grassTint;
+          // Lower blade sections sit inside the snowpack, so tufts emerge from it
+          // instead of standing on top of a grey plane.
+          vColor.rgb = mix(vColor.rgb, vec3(0.80, 0.84, 0.88), uGrassSnow * (1.0 - smoothstep(0.08, 0.42, aBladeParam.x)) * 0.85);`)
         .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
           objectNormal.xz = mat2(grassShapeRotation.x, grassShapeRotation.y, -grassShapeRotation.y, grassShapeRotation.x)
             * objectNormal.xz / grassShapeLean;
@@ -319,7 +348,7 @@ export class GrassField {
           outgoingLight += diffuseColor.rgb * uGrassWrap * (0.7 + 0.3 * (1.0 - abs(dot(normal, normalize(vViewPosition)))));
           #include <opaque_fragment>`);
     };
-    this.material.customProgramCacheKey = () => 'field-grass-cell-density-v13';
+    this.material.customProgramCacheKey = () => 'field-grass-cell-density-v14';
     atmo?.register?.(this.material);
   }
 

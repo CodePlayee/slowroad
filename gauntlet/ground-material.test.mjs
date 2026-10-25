@@ -157,7 +157,8 @@ test('world-fixed offsets break the source image repeat without changing its lea
 test('new moss and litter weights retain the existing exclusions and winter detail burial', () => {
   const surface = shader.match(/float woodlandSurface = [\s\S]*?;/)?.[0];
   assert.ok(surface);
-  assert.match(surface, /shore/); assert.match(surface, /rk/); assert.match(surface, /vRoadDist/);
+  assert.match(surface, /shore/); assert.match(surface, /rk/); assert.match(surface, /roadTurf/);
+  assert.match(shader.match(/float roadEdge = [\s\S]*?;/)?.[0] ?? '', /vRoadDist/);
   assert.match(shader, /float woodlandWeight = forestFloor \* woodlandSurface/);
   assert.match(shader, /float litterWeight = woodlandWeight \* litterShare/);
   assert.match(shader, /float mossWeight = woodlandWeight \* mossShare/);
@@ -169,24 +170,35 @@ test('new moss and litter weights retain the existing exclusions and winter deta
   assert.match(shader, /plantContactBounds \* woodlandSurface/);
 });
 
-test('turf root occlusion has no model-distance fade and is zero on physical exclusions', () => {
+test('turf root occlusion has no model-distance fade and is zero on physical exclusions', async () => {
   const contact = shader.match(/float meadowContact = [\s\S]*?;/)?.[0];
   assert.ok(contact);
   assert.doesNotMatch(contact, /grassRoadCoverage|grassViewCoverage|grassModelCoverage|vViewPosition|cameraPosition|Time/);
   assert.match(contact, /meadowSurface \* \(1\.0 - litterWeight - mossWeight\)/);
   assert.match(contact, /\(0\.35 \+ 0\.65 \* understoryGrowth\)/);
-  assert.match(contact, /smoothstep\(uRoadScuffInner - 0\.15, uRoadScuffInner \+ 1\.05, vRoadDist\)/);
+  assert.match(contact, /\* roadTurf/);
   const surface = shader.match(/float meadowSurface = [\s\S]*?;/)?.[0];
   assert.ok(surface);
   assert.match(surface, /shore/); assert.match(surface, /rk/); assert.match(surface, /uSnowAmount/);
   const weights = ecosystem(1, 0.6, 0.65, 0.5);
   const growth = smooth(0.18, 0.82, 0.6 * 0.62 + 0.65 * 0.28);
-  const occlusion = (road, shore = 0, rock = 0, snow = 0) => weights.turf * (0.35 + 0.65 * growth)
-    * smooth(4, 5.2, road) * (1 - shore) * (1 - rock) * (1 - snow);
+  // Mirror of the shader's road rim: world-space noise and the turf texture decide
+  // where tufts root between the bare rim and established turf.
+  const { TERRAIN: P } = await import('../src/terrain/params.js');
+  const roadTurf = (road, tuft, scuff, micro) => {
+    const edge = road + (scuff - 0.5) * 1.15 + (micro - 0.5) * 0.30;
+    const verge = 1 - smooth(P.roadScuffInner, P.roadScuffOuter, edge);
+    return smooth(-0.10, 0.10, tuft * 0.70 + scuff * 0.30 - mix(-0.25, 1.0, verge * verge));
+  };
+  const occlusion = (road, shore = 0, rock = 0, snow = 0, tuft = 0.5, scuff = 0.5, micro = 0.5) =>
+    weights.turf * (0.35 + 0.65 * growth) * roadTurf(road, tuft, scuff, micro)
+    * (1 - shore) * (1 - rock) * (1 - snow);
   const baseline = occlusion(16);
   assert.ok(baseline > 0);
-  for (const road of [16, 20, 28, 48, 76, 150, 255]) assert.equal(occlusion(road), baseline);
-  assert.equal(occlusion(3.9), 0);
+  for (const road of [16, 20, 28, 48, 76, 150, 255]) for (const n of [0, 0.5, 1]) {
+    assert.equal(occlusion(road, 0, 0, 0, n, n, 1 - n), baseline);
+  }
+  for (const n of [0, 0.5, 1]) assert.equal(occlusion(3.5, 0, 0, 0, n), 0, 'bare rim at the pavement lip');
   assert.equal(occlusion(28, 1), 0);
   assert.equal(occlusion(28, 0, 1), 0);
   assert.equal(occlusion(28, 0, 0, 1), 0);

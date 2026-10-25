@@ -1,12 +1,16 @@
-// src/road/roadmesh.js — the ribbon: asphalt + shoulders + graded verge, with lane
-// markings drawn in the shader (no decals, no z-fighting). Owned by the ROAD builder.
+// src/road/roadmesh.js — the ribbon: asphalt with a crumbled edge and lane markings
+// drawn in the shader (no decals, no z-fighting). The dirt rim and turf beside the
+// pavement belong to the terrain material. Owned by the ROAD builder.
 
 import * as THREE from 'three';
 import { ROAD as R } from './params.js';
 import { crossSection, ROAD_EDGES } from '../world/world.js';
-import { clamp, lerp } from '../core/rng.js';
+import { lerp } from '../core/rng.js';
+import { SURFACE_HASH_GLSL } from '../core/shaderNoise.js';
 
 const { HALF_PAVE } = ROAD_EDGES;
+// Pavement + shoulder stations per ribbon row (see _build).
+export const RIBBON_STATIONS = 7;
 
 const FENCE_STEP = 3.2;
 const FENCE_POST_H = 0.9;
@@ -28,8 +32,8 @@ function boxIndices(out, b) {
 }
 
 const VERT_HEAD = /* glsl */`
-attribute vec3 aRoad;
-varying vec3 vRoad;
+attribute vec2 aRoad;
+varying vec2 vRoad;
 varying vec3 vWPosR;
 `;
 const VERT_BODY = /* glsl */`
@@ -37,92 +41,110 @@ const VERT_BODY = /* glsl */`
   vWPosR = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;
 `;
 const FRAG_HEAD = /* glsl */`
-varying vec3 vRoad;
+varying vec2 vRoad;
 varying vec3 vWPosR;
 uniform vec3 uAsphalt;
-uniform vec3 uShoulder;
-uniform vec3 uVerge;
 uniform vec3 uPaint;
 uniform float uHalfPave;
-uniform float uShoulderEdge;
-uniform vec3 uVergeDirt;
+uniform vec3 uEdgeGravel;
 uniform vec3 uSnow;
 uniform float uSnowAmount;
 uniform float uDashLen;
 uniform float uGapLen;
 uniform float uPaintWear;
-uniform sampler2D uGroundDetail;
-uniform vec3 uGroundLush;
-uniform vec3 uGroundDry;
-uniform vec3 uGroundSoil;
 uniform vec4 uVehicleContact;
 uniform vec4 uVehicleFootprint;
 uniform float uVehicleShadowOpacity;
 
-float rhash( vec2 p ) { p = fract( p * vec2( 443.897, 441.423 ) ); p += dot( p, p + 19.19 ); return fract( p.x * p.y ); }
+${SURFACE_HASH_GLSL}
+// Integer hash: the old fract()-of-large-product float hash lost every fractional
+// bit a few km from the origin, so fine octaves went flat or quantised en route.
+float rhash( vec2 p ) { return surfaceHash( p ); }
 float rvn( vec2 p ) {
   vec2 i = floor( p ), f = fract( p ); f = f * f * ( 3.0 - 2.0 * f );
   return mix( mix( rhash( i ), rhash( i + vec2( 1, 0 ) ), f.x ), mix( rhash( i + vec2( 0, 1 ) ), rhash( i + vec2( 1, 1 ) ), f.x ), f.y );
 }
-float rfbm( vec2 p ) { float s = 0.0, a = 0.5; for ( int i = 0; i < 4; i ++ ) { s += a * rvn( p ); p *= 2.11; a *= 0.5; } return s; }
+// Value noise whose contrast settles to its mean once a cell nears one pixel,
+// so fine material octaves never alias into speckle at range.
+float rvnAA( vec2 p ) {
+  return mix( 0.5, rvn( p ), 1.0 - smoothstep( 0.35, 1.10, length( fwidth( p ) ) ) );
+}
+float rfbm( vec2 p ) {
+  float s = 0.0, a = 0.5, cell = length( fwidth( p ) );
+  for ( int i = 0; i < 4; i ++ ) {
+    s += a * mix( 0.5, rvn( p ), 1.0 - smoothstep( 0.35, 1.10, cell ) );
+    p *= 2.11; cell *= 2.11; a *= 0.5;
+  }
+  return s;
+}
 `;
 const FRAG_BODY = /* glsl */`
   float lat = abs( vRoad.x );
   float sAlong = vRoad.y;
-  float band = vRoad.z;
 
   vec2 ru = vWPosR.xz;
   mat2 rot = mat2( 0.82, -0.57, 0.57, 0.82 );
   float grain = rfbm( rot * ru * 0.42 );
   float coarse = rfbm( ru * 0.075 + vec2( 11.0, -4.0 ) );
 
-  // Shade the ribbon from lateral distance instead of the discrete band id.
-  // The old band split made the coplanar shoulder/verge vertices read as a hard
-  // polygon strip.  A single continuous blend lets the world-space field noise
-  // carry through the seam while retaining a crisp asphalt edge line.
-  float asphaltMask = 1.0 - smoothstep( uHalfPave - 0.08, uHalfPave + 0.14, lat );
-  float vergeMask = smoothstep( uShoulderEdge - 0.16, uShoulderEdge + 0.78, lat );
-  float shoulderNoise = rfbm( ru * 0.12 + vec2( 5.0, -7.0 ) );
-  vec3 asphalt = uAsphalt * ( 0.86 + 0.20 * grain ) * ( 0.94 + 0.12 * coarse ) * ( 0.95 + 0.08 * rvn( rot * ru * 2.6 ) );
-  float wheel = exp( -pow( ( lat - 1.72 ) * 1.6, 2.0 ) );
-  asphalt *= 1.0 - 0.09 * wheel;
-  asphalt *= 1.0 + 0.05 * ( 1.0 - smoothstep( 0.0, 0.9, lat ) );
+  // The ribbon stops at the pavement. Its shoulder/verge vertices only carry the
+  // crumbled asphalt lip; the terrain draws the dirt rim and turf from the same
+  // road distance, so there is no second coplanar ground layer to feather.
+  // Two world-space octaves bite 0.08-0.22 m past the paved half-width.
+  float edgeBreak = 0.62 * rvn( ru * 0.9 + vec2( 5.0, -7.0 ) )
+    + 0.38 * rvnAA( rot * ru * 4.3 + vec2( -2.0, 3.0 ) );
+  float paveEdge = uHalfPave + 0.08 + 0.14 * edgeBreak;
+  float edgeDist = paveEdge - lat;
+  // Asphalt: coarse aggregate at centimetre scale (faded by its pixel footprint so
+  // it never aliases), mid-scale binder mottling, sealed repair patches, and two
+  // polished wheel paths per lane with dustier ground between and outside them.
+  vec2 aggUv = rot * ru * 16.0;
+  float aggFootprint = length( fwidth( aggUv ) );
+  float aggregate = ( rvn( aggUv ) - 0.5 ) * ( 1.0 - smoothstep( 0.35, 1.10, aggFootprint ) );
+  float mottle = rfbm( ru * 0.85 + vec2( -6.0, 2.0 ) );
+  float patchField = rvn( rot * ru * 0.11 + vec2( 9.0, 4.0 ) );
+  float repair = smoothstep( 0.70, 0.76, patchField ) * smoothstep( 0.30, 0.55, coarse );
+  vec3 asphalt = uAsphalt * ( 0.86 + 0.20 * grain ) * ( 0.94 + 0.12 * coarse ) * ( 0.90 + 0.20 * mottle );
+  asphalt *= 1.0 + 0.22 * aggregate;
+  asphalt *= 1.0 - 0.16 * repair;
+  float laneLat = abs( lat - 1.75 );
+  float wheelTrack = exp( -pow( ( laneLat - 0.80 ) * 3.6, 2.0 ) ) * ( 0.70 + 0.30 * coarse );
+  asphalt *= 1.0 - 0.11 * wheelTrack;
+  asphalt *= 1.0 + 0.06 * ( 1.0 - smoothstep( 0.0, 0.45, laneLat ) ) + 0.05 * ( 1.0 - smoothstep( 0.0, 0.9, lat ) );
+  // Winter tarmac is wet and darker under the slush; the bare wheel paths are
+  // wettest of all.
+  asphalt *= 1.0 - 0.14 * uSnowAmount;
+  asphalt *= 1.0 - 0.16 * uSnowAmount * wheelTrack;
+  // The outer decimetres are broken, gravel-filled asphalt whose albedo meets
+  // the terrain's dirt rim, so the cut edge reads as a lip, not a pale seam.
+  float rim = 1.0 - smoothstep( 0.0, 0.34, edgeDist );
+  vec3 gravel = uEdgeGravel * ( 0.80 + 0.40 * rvnAA( rot * ru * 7.0 + vec2( 3.0, 1.0 ) ) );
+  vec3 col = mix( asphalt, gravel, rim * ( 0.30 + 0.40 * grain ) );
+  // Winter: thrown slush gathers along the edge and thins toward the wheel paths.
+  float edgeSlush = uSnowAmount * ( 1.0 - smoothstep( 0.0, 0.62, edgeDist + ( coarse - 0.5 ) * 0.40 ) );
+  col = mix( col, uSnow * ( 0.74 + 0.14 * coarse ), edgeSlush * ( 0.45 + 0.35 * grain ) );
 
-  float fieldNoise = 0.58 * coarse + 0.42 * rfbm( ru * 0.014 + vec2( -9.0, 17.0 ) );
-  // Keep the graded edge tied to the same world-space field as the terrain;
-  // the existing coarse octave supplies enough breakup without a second
-  // per-fragment stochastic rotation/noise pass.
-  float fieldMix = smoothstep( 0.20, 0.82, fieldNoise );
-  vec3 field = mix( uGroundDry, uGroundLush, fieldMix );
-  float blades = dot( texture2D( uGroundDetail,
-    mat2( 0.8, -0.6, 0.6, 0.8 ) * ru * 0.42 + vec2( 4.0, -6.0 ) ).rgb,
-    vec3( 0.2126, 0.7152, 0.0722 ) );
-  field *= clamp( 0.62 + 2.70 * blades + 0.16 * shoulderNoise, 0.55, 1.36 );
-  float soil = smoothstep( 0.34, 0.76, shoulderNoise + ( 0.5 - fieldMix ) * 0.24 );
-  vec3 verge = mix( field, uGroundSoil * ( 0.82 + 0.24 * shoulderNoise ), soil * 0.26 );
-  vec3 shoulder = mix( uShoulder * ( 0.78 + 0.30 * shoulderNoise ), field, 0.28 + 0.16 * shoulderNoise );
-  // Feather the shoulder into the field with a second broad value ramp.  The
-  // contact darkening is strongest at the asphalt/soil interface and quickly
-  // relaxes outward, grounding the ribbon without a visible halo.
-  float shoulderBlend = smoothstep( uShoulderEdge - 0.28, uShoulderEdge + 1.16, lat );
-  vec3 edgeCol = mix( shoulder, verge, max( vergeMask, shoulderBlend * 0.38 ) );
-  float contact = 1.0 - smoothstep( uHalfPave + 0.10, uShoulderEdge + 2.6, lat );
-  edgeCol *= 1.0 - contact * ( 0.035 + 0.045 * ( 1.0 - fieldMix ) );
-  float snowMask = uSnowAmount * ( 0.74 + 0.26 * fieldNoise ) *
-    smoothstep( uHalfPave - 0.10, uShoulderEdge + 0.88, lat );
-  edgeCol = mix( edgeCol, uSnow * ( 0.90 + 0.10 * fieldNoise ), snowMask );
-  vec3 col = mix( edgeCol, asphalt, asphaltMask );
-
-  if ( asphaltMask > 0.5 ) {
-    float ec = uHalfPave - 0.30;
-    float edge = ( 1.0 - smoothstep( 0.055, 0.085, abs( lat - ec ) ) );
-    float period = uDashLen + uGapLen;
-    float dash = step( fract( sAlong / period ), uDashLen / period );
-    float centre = ( 1.0 - smoothstep( 0.048, 0.070, lat ) ) * dash;
-    float paint = clamp( edge + centre, 0.0, 1.0 ) * asphaltMask;
-    paint *= uPaintWear * ( 0.62 + 0.38 * rfbm( vWPosR.xz * 5.0 ) );
-    col = mix( col, uPaint, paint );
-  }
+  float ec = uHalfPave - 0.30;
+  float edge = ( 1.0 - smoothstep( 0.055, 0.085, abs( lat - ec ) ) );
+  float period = uDashLen + uGapLen;
+  float dash = step( fract( sAlong / period ), uDashLen / period );
+  float centre = ( 1.0 - smoothstep( 0.048, 0.070, lat ) ) * dash;
+  float paint = clamp( edge + centre, 0.0, 1.0 );
+  paint *= uPaintWear * ( 0.62 + 0.38 * rfbm( vWPosR.xz * 5.0 ) );
+  col = mix( col, uPaint, paint );
+  // Winter: traffic keeps two bare, wet wheel paths per lane; packed snow lies
+  // between and outside them and partly buries the markings. The breakup is
+  // world-space and isotropic: noise stretched along the lane projects into long
+  // fan-shaped streaks under perspective. Its octaves fade with pixel footprint,
+  // so at range the cover settles to its mean instead of thresholding to speckle.
+  float snowPatch = rvnAA( rot * ru * 1.3 + vec2( -4.0, 6.0 ) );
+  float snowPowder = rvnAA( rot * ru * 6.5 + vec2( 13.0, -2.0 ) );
+  float snowBreak = snowPatch * 0.50 + mottle * 0.22 + coarse * 0.14 + snowPowder * 0.14;
+  // Slush banks up on the crown and toward the edge, where wheels rarely pass.
+  float snowBank = max( 1.0 - smoothstep( 0.15, 0.60, lat ), smoothstep( 2.90, 3.30, lat ) );
+  float laneSnow = uSnowAmount * ( 1.0 - smoothstep( 0.10, 0.55, wheelTrack ) )
+    * smoothstep( 0.34, 0.62, snowBreak + 0.16 * snowBank );
+  col = mix( col, uSnow * ( 0.70 + 0.12 * mottle + 0.06 * aggregate + 0.10 * ( snowPowder - 0.5 ) ), laneSnow * 0.85 );
   // A road-space soft contact decal, not a projected light shadow. It follows
   // the actual ribbon (including grades, crown and bridges), with no overlay
   // plane, depth fighting, extra draw call or offscreen render pass.
@@ -168,26 +190,20 @@ export class RoadMesh {
       uVehicleFootprint: { value: new THREE.Vector4(1, 2.4, 0.82, 1.45) },
       uVehicleShadowOpacity: { value: 0 },
       uAsphalt: { value: new THREE.Color(0.128, 0.130, 0.134) },
-      uShoulder: { value: new THREE.Color(0.30, 0.27, 0.22) },
-      uVerge: { value: new THREE.Color(0.24, 0.28, 0.14) },
       uPaint: { value: new THREE.Color(0.90, 0.90, 0.87) },
       uHalfPave: { value: HALF_PAVE },
       uDashLen: { value: R.centreDashLen },
       uGapLen: { value: R.centreDashGap },
       uPaintWear: { value: 0.92 },
-      uShoulderEdge: { value: HALF_PAVE + R.shoulderWidth },
-      uVergeDirt: { value: new THREE.Color(0.26, 0.23, 0.18) },
-      // Share seasonal snow controls with terrain so the graded edge remains a
-      // continuous surface in winter instead of exposing a tan road apron.
+      // Gravel caught in the crumbled lip; applyPalette() matches it to the
+      // terrain's dirt rim (mix(soil * 0.62, rock * 0.50, 0.30)).
+      uEdgeGravel: { value: new THREE.Color(0.181, 0.152, 0.113) },
+      // Share seasonal snow controls with terrain so winter slush on the lip
+      // matches the snow field that the terrain carries up to the pavement.
       uSnow: terrain.uniforms.uSnow,
       uSnowAmount: terrain.uniforms.uSnowAmount,
-      uGroundDetail: terrain.uniforms.uGrassDetail,
-      // Reuse the terrain palette so road shoulders inherit the same biome
-      // values instead of introducing a separate coloured apron.
-      uGroundLush: terrain.uniforms.uGrassLush,
-      uGroundDry: terrain.uniforms.uGrassDry,
-      uGroundSoil: terrain.uniforms.uSoil,
     };
+    this._terrainSoil = terrain.uniforms.uSoil;
     const U = this.uniforms;
     this.material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.86, metalness: 0.0,
       dithering: true, alphaToCoverage: true });
@@ -201,23 +217,24 @@ export class RoadMesh {
         .replace('#include <common>', '#include <common>\n' + FRAG_HEAD)
         .replace('#include <color_fragment>', '#include <color_fragment>\n' + FRAG_BODY)
         .replace('#include <alphatest_fragment>', `#include <alphatest_fragment>
-          // Reveal the actual meadow beneath the graded apron, not its polygon edge.
-          float vergeEdge = lat + (shoulderNoise - 0.5) * 0.45;
-          float vergeCoverage = 1.0 - smoothstep(uShoulderEdge + 0.02, uShoulderEdge + 0.82, vergeEdge);
-          if (vergeCoverage <= 0.001) discard;
-          diffuseColor.a *= vergeCoverage;`);
+          // Antialias only the crumbled pavement edge: coverage ramps over one
+          // pixel footprint, so alpha-to-coverage cannot quantise a wide feather
+          // into stepped translucent bands over the terrain.
+          float paveCoverage = clamp(edgeDist / max(fwidth(edgeDist), 0.0001) + 0.5, 0.0, 1.0);
+          if (paveCoverage <= 0.001) discard;
+          diffuseColor.a *= paveCoverage;`);
     };
-    this.material.customProgramCacheKey = () => 'road-vehicle-contact-v4';
+    this.material.customProgramCacheKey = () => 'road-crumbled-edge-v5';
     atmo.register(this.material);
   }
 
   applyPalette() {
     const p = this.atmo.palette;
-    const mixc = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
-    const verge = mixc(p.grassDry, p.grassLush, 0.45);
-    this.uniforms.uVerge.value.setRGB(verge[0] * 0.94, verge[1] * 0.94, verge[2] * 0.94);
-    this.uniforms.uVergeDirt.value.setRGB(p.sand[0] * 0.60, p.sand[1] * 0.55, p.sand[2] * 0.46);
-    this.uniforms.uShoulder.value.setRGB(p.sand[0] * 0.52, p.sand[1] * 0.48, p.sand[2] * 0.42);
+    const soil = this._terrainSoil.value;
+    this.uniforms.uEdgeGravel.value.setRGB(
+      lerp(soil.r * 0.62, p.rock[0] * 0.50, 0.30),
+      lerp(soil.g * 0.62, p.rock[1] * 0.50, 0.30),
+      lerp(soil.b * 0.62, p.rock[2] * 0.50, 0.30));
   }
 
   setVehicleContact(vehicle) {
@@ -278,14 +295,12 @@ export class RoadMesh {
     // of ds; rounding down leaves a transverse gap before the next segment.
     const n = Math.ceil((sEnd - sStart) / ds) + 1;
 
-    // Lateral stations. Band ids MUST be duplicated at every material boundary,
-    // otherwise the band attribute interpolates across the quad and half a lane of
-    // asphalt gets shaded as gravel shoulder.
-    const STAT = 13;
-    const BANDS = [2, 2, 1, 1, 0, 0, 0, 0, 0, 1, 1, 2, 2];
+    // Lateral stations: pavement plus the graded shoulder that carries the
+    // crumbled asphalt lip. The verge beyond is terrain-only (same graded surface,
+    // see world.crossSection), so the ribbon no longer lays a second ground layer.
+    const STAT = RIBBON_STATIONS;
     const pos = new Float32Array(n * STAT * 3);
-    const road = new Float32Array(n * STAT * 3);
-    const cy = new Float32Array(n);
+    const road = new Float32Array(n * STAT * 2);
     const q = {};
     const origin = rt.at(sStart + (sEnd - sStart) / 2, {});
     const ox = origin.x, oz = origin.z, oy = origin.y;
@@ -295,25 +310,18 @@ export class RoadMesh {
       const p = rt.at(s, q);
       const b = p.bridge;
       const shoulderW = lerp(R.shoulderWidth, 0.05, b);
-      const vergeW = lerp(R.vergeWidth, 0.02, b);
       const SE = HALF_PAVE + shoulderW;
-      const VE = SE + vergeW;
       const HP = HALF_PAVE;
-      const lats = [-VE, -SE, -SE, -HP, -HP, -HP * 0.5, 0, HP * 0.5, HP, HP, SE, SE, VE];
+      const lats = [-SE, -HP, -HP * 0.5, 0, HP * 0.5, HP, SE];
       const nx = -p.tz, nz = p.tx;
-      cy[i] = p.y;
       for (let k = 0; k < STAT; k++) {
         const lat = lats[k];
-        const al = Math.abs(lat);
-        let y = p.y + crossSection(al) + R.surfaceLift;
+        const y = p.y + crossSection(Math.abs(lat)) + R.surfaceLift;
         const x = p.x + nx * lat, z = p.z + nz * lat;
-        if (BANDS[k] === 2 && b < 0.5) {
-          const g = this.world.ground(x, z) + 0.03;
-          if (g > y) y = g;
-        }
         const o = (i * STAT + k) * 3;
         pos[o] = x - ox; pos[o + 1] = y - oy; pos[o + 2] = z - oz;
-        road[o] = lat; road[o + 1] = s; road[o + 2] = BANDS[k];
+        const r = (i * STAT + k) * 2;
+        road[r] = lat; road[r + 1] = s;
       }
     }
 
@@ -331,7 +339,7 @@ export class RoadMesh {
 
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    g.setAttribute('aRoad', new THREE.BufferAttribute(road, 3));
+    g.setAttribute('aRoad', new THREE.BufferAttribute(road, 2));
     g.setIndex(new THREE.BufferAttribute(idx, 1));
     g.computeVertexNormals();
     g.computeBoundingSphere();

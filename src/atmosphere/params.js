@@ -38,11 +38,15 @@ export const ATMO = {
   hazeFalloff: 0.0024,
   // Keep the far field open enough for several ridge steps to survive; the
   // shader material supplies the additional blue-green separation at range.
-  // A slightly denser daytime aerial column keeps the valley's 3-5 ridge
-  // layers blue-gray and separated instead of leaving a saturated blue strip.
-  hazeDensityDay: 0.000210,
+  // Daytime column halved against the old 2.1e-4 now that the lifted far ridges
+  // carry the layering: with the far veil below, clear-noon ridge rows step
+  // V0.67 / 0.76 / 0.84 / 0.92 (1-2 / 2-3.5 / 3.5-5.5 / 5.5-12 km) under sky 0.99,
+  // close to sr_03's 0.66 / 0.87 / 0.93 ladder and sr_01's far hill V0.62.
+  hazeDensityDay: 0.000110,
   hazeDensityDawn: 0.00046,
-  hazeDistanceDay: 0.0000200,  // leave two to three blue-gray ridge steps readable
+  // Height-independent floor; it takes over from the column past ~6 km and
+  // closes the farthest row toward the sky.
+  hazeDistanceDay: 0.0001000,
   hazeDistanceDawn: 0.0000310,
   // layer B: shallow valley mist. e-folds over 1/0.019 = ~53 m, so it fills hollows and
   // leaves ridges above it crisp. Only switched on near dawn/dusk and in bad weather.
@@ -57,6 +61,12 @@ export const ATMO = {
   aerialDarkPow: 0.70,
   mistTintBlend: 0.55,
   aerialMixGamma: 3.0,   // preserve value steps between successive distant ridges
+  // Distance-only far veil [start m, full m, strength], applied after both layers.
+  // It used to be a fixed smoothstep(420, 1900) * 0.22 in fog.js, which put a 0.22
+  // floor on everything past 1.9 km and squeezed all far ridge rows into V0.91-0.95.
+  // Starting it past the streamed road range keeps the 1-3 km step dark and closes
+  // only the 6-10 km rows toward the sky (sr_01 farthest ridge V0.96 vs sky 0.99).
+  aerialFar: [2500, 9000, 0.30],
 
   // ---- grade -------------------------------------------------------------------
   gradeSat: 1.07,

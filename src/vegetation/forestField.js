@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { loadFoliageAssets } from './foliageAssets.js';
 import { TERRAIN } from '../terrain/params.js';
+import { farRidgeShape, farRidgeEnvelope, farRidgeOffset, farRidgeGlsl } from '../terrain/farRidge.js';
 import { TREE_SPECIES, isEvergreenSpecies } from './treeSpecies.js';
 const IDENTITY_MATRIX = new THREE.Matrix4();
 
@@ -34,7 +35,7 @@ export function foliageRenderDimensions(record, template) {
 
 export function projectedPlantHeight(record, camera, pixelScale, template) {
   const { height } = foliageRenderDimensions(record, template);
-  const lift = foliageRidgeOffset(record.x, record.z, camera.position.x, camera.position.z);
+  const lift = foliageRidgeOffset(record.x, record.z, camera.position.x, camera.position.z, record.y, camera.position.y);
   const distance = Math.hypot(record.x - camera.position.x, record.y + lift + height * 0.5 - camera.position.y, record.z - camera.position.z);
   return height * pixelScale / Math.max(0.5, distance);
 }
@@ -44,22 +45,9 @@ export function foliageTemplateKey(record, kind = 'tree') {
 }
 
 // Mirrors terrain's visual-only far ridge lift, which is not in its height sampler.
-export function foliageRidgeOffset(x, z, cameraX, cameraZ) {
-  const distance = Math.hypot(x - cameraX, z - cameraZ);
-  if (distance <= TERRAIN.farRidgeNear) return 0;
-  return foliageRidgeShape(x, z) * smoothstep(TERRAIN.farRidgeNear, TERRAIN.farRidgeFar, distance);
-}
-
-function foliageRidgeShape(x, z) {
-  const crestA = 1 - Math.abs(Math.sin(x * 0.00016 + z * 0.000095 + Math.sin(x * 0.000047) * 1.7 + Math.sin(z * 0.000031) * 0.8));
-  const crestB = 1 - Math.abs(Math.sin(x * -0.000071 + z * 0.00019 + Math.sin(z * 0.000061) * 1.4 + Math.sin(x * 0.000022) * 0.9));
-  const crestC = 1 - Math.abs(Math.sin(x * 0.00031 - z * 0.00022 + Math.sin(x * 0.00009 + z * 0.00013) * 0.55));
-  const contourA = 0.5 + 0.5 * Math.sin(x * 0.000043 - z * 0.000027 + Math.sin(x * 0.000019 + z * 0.000013) * 1.2);
-  const contourB = 0.5 + 0.5 * Math.cos(x * -0.000021 + z * 0.000036 + Math.sin(z * 0.000016) * 0.9);
-  const shape = smoothstep(0.16, 0.86, crestA) * (0.38 + contourA * 0.18) + smoothstep(0.18, 0.84, crestB) * (0.24 + contourB * 0.16)
-    + smoothstep(0.22, 0.82, crestC) * 0.18 - 0.34;
-  const shoulder = smoothstep(0.34, 0.72, crestA * (0.46 + contourA * 0.16) + crestB * (0.30 + contourB * 0.08));
-  return shape * TERRAIN.farRidgeAmp + (shoulder - 0.42) * TERRAIN.farRidgeAmp * 0.34;
+// `y` is the plant root height; the lift only depends on it through height above the eye.
+export function foliageRidgeOffset(x, z, cameraX, cameraZ, y = 0, cameraY = 0) {
+  return farRidgeOffset(x, z, y, cameraX, cameraY, cameraZ);
 }
 
 function createVisibilityCache(population, bounds, sphere, heights) {
@@ -85,8 +73,9 @@ function createVisibilityCache(population, bounds, sphere, heights) {
         const horizontal = Math.hypot(record.x - this.x, record.z - this.z);
         let lift = 0;
         if (horizontal > TERRAIN.farRidgeNear) {
-          if (Number.isNaN(ridges[index])) ridges[index] = foliageRidgeShape(record.x, record.z);
-          lift = ridges[index] * smoothstep(TERRAIN.farRidgeNear, TERRAIN.farRidgeFar, horizontal);
+          if (Number.isNaN(ridges[index])) ridges[index] = farRidgeShape(record.x, record.z);
+          const envelope = farRidgeEnvelope(horizontal, record.y - this.y);
+          lift = envelope === 0 ? 0 : ridges[index] * envelope;
         }
         const height = heights[index];
         const distance = Math.hypot(record.x - this.x, record.y + lift + height * 0.5 - this.y, record.z - this.z);
@@ -98,17 +87,8 @@ function createVisibilityCache(population, bounds, sphere, heights) {
   };
 }
 
-export const FOLIAGE_RIDGE_GLSL = `
-  float foliageRidgeOffset(vec2 uv) {
-    float a = 1.0 - abs(sin(dot(uv, vec2(0.00016, 0.000095)) + sin(uv.x * 0.000047) * 1.7 + sin(uv.y * 0.000031) * 0.8));
-    float b = 1.0 - abs(sin(dot(uv, vec2(-0.000071, 0.00019)) + sin(uv.y * 0.000061) * 1.4 + sin(uv.x * 0.000022) * 0.9));
-    float c = 1.0 - abs(sin(dot(uv, vec2(0.00031, -0.00022)) + sin(dot(uv, vec2(0.00009, 0.00013))) * 0.55));
-    float ca = 0.5 + 0.5 * sin(dot(uv, vec2(0.000043, -0.000027)) + sin(uv.x * 0.000019 + uv.y * 0.000013) * 1.2);
-    float cb = 0.5 + 0.5 * cos(dot(uv, vec2(-0.000021, 0.000036)) + sin(uv.y * 0.000016) * 0.9);
-    float shape = smoothstep(0.16, 0.86, a) * (0.38 + ca * 0.18) + smoothstep(0.18, 0.84, b) * (0.24 + cb * 0.16) + smoothstep(0.22, 0.82, c) * 0.18 - 0.34;
-    float shoulder = smoothstep(0.34, 0.72, a * (0.46 + ca * 0.16) + b * (0.30 + cb * 0.08));
-    return (shape + (shoulder - 0.42) * 0.34) * ${TERRAIN.farRidgeAmp.toFixed(1)} * smoothstep(${TERRAIN.farRidgeNear.toFixed(1)}, ${TERRAIN.farRidgeFar.toFixed(1)}, distance(uv, cameraPosition.xz));
-  }
+export const FOLIAGE_RIDGE_GLSL = `${farRidgeGlsl()}
+  float foliageRidgeOffset(vec3 root) { return farRidgeLift(root); }
 `;
 
 function sharedGeometry(source) {
@@ -158,6 +138,47 @@ export async function warmupFoliagePrograms(renderer, targetScene, templates, ma
   }
 }
 
+// Crown ellipsoid (radius, centre height, half height) in template space,
+// measured once per template from its foliage part.
+const crownShapes = new WeakMap();
+function foliageCrownShape(template) {
+  if (crownShapes.has(template)) return crownShapes.get(template);
+  const shape = template.impostor.shape, crown = template.parts.leaf;
+  let radius = shape.radius, bottom = 0.35 * shape.top, top = shape.top;
+  const position = crown?.getAttribute?.('position');
+  if (position?.count) {
+    crown.computeBoundingBox();
+    let leafRadius = 0;
+    for (let i = 0; i < position.count; i++) leafRadius = Math.max(leafRadius, Math.hypot(position.getX(i), position.getZ(i)));
+    radius = leafRadius; bottom = crown.boundingBox.min.y; top = crown.boundingBox.max.y;
+  }
+  const value = new THREE.Vector4(Math.max(0.05, radius), (bottom + top) * 0.5, Math.max(0.05, (top - bottom) * 0.5), 0);
+  crownShapes.set(template, value);
+  return value;
+}
+
+const SPOT_DIRECT = 'RE_Direct( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );';
+
+// Spot lights (the headlight) are kept out of the key-light crown term: they
+// shade the photopic albedo, take the crown hull facing their own direction,
+// and are added back after the key/sky occlusion. Unrolled loop: no declarations.
+function foliageLightsChunk(crownWeight) {
+  const chunk = THREE.ShaderChunk.lights_fragment_begin;
+  const spot = chunk.indexOf('#if ( NUM_SPOT_LIGHTS > 0 )');
+  const call = spot < 0 ? -1 : chunk.indexOf(SPOT_DIRECT, spot);
+  if (call < 0) throw new Error('three.js lights_fragment_begin has no spot RE_Direct call to wrap');
+  return `${chunk.slice(0, call)}
+    foliageSpotBase = reflectedLight.directDiffuse;
+    directLight.color *= mix(1.0, smoothstep(-0.40, 0.60, dot(normalize(vFoliageHull),
+      inverseTransformDirection(directLight.direction, viewMatrix))) * (1.0 - 0.65 * foliageInterior), ${crownWeight.toFixed(2)});
+    material.diffuseColor += foliagePhotopicShift;
+    ${SPOT_DIRECT}
+    material.diffuseColor -= foliagePhotopicShift;
+    foliageSpotDiffuse += reflectedLight.directDiffuse - foliageSpotBase;
+    reflectedLight.directDiffuse = foliageSpotBase;
+  ${chunk.slice(call + SPOT_DIRECT.length)}`;
+}
+
 export function makeFoliageMaterial(template, part, uniforms, atmo) {
   const far = part === 'impostor';
   const leaf = part === 'leaf';
@@ -176,6 +197,7 @@ export function makeFoliageMaterial(template, part, uniforms, atmo) {
   const range = FOREST_LOD[template.kind];
   const lod = { value: new THREE.Vector4(range.low, range.high, range.fadeStart, range.fadeEnd) };
   const normalMap = { value: template.impostor.normalTexture };
+  const crown = { value: foliageCrownShape(template) };
   material.userData.uniforms = uniforms;
   material.userData.foliageTemplate = template;
   material.userData.foliagePart = part;
@@ -185,23 +207,27 @@ export function makeFoliageMaterial(template, part, uniforms, atmo) {
     foliageLodUniform: { value: lod, enumerable: true },
   });
   material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uniforms, { uFoliageLod: lod, uFoliageNormalMap: normalMap });
+    Object.assign(shader.uniforms, uniforms, { uFoliageLod: lod, uFoliageNormalMap: normalMap, uFoliageCrown: crown });
     shader.vertexShader = shader.vertexShader.replace('#include <common>', `#include <common>
       attribute vec4 iFoliage;
       uniform float uFoliageTime;
       uniform float uFoliagePixelScale;
       uniform vec4 uFoliageLod;
+      uniform vec4 uFoliageCrown;
       varying float vFoliageCoverage;
       varying float vFoliageView;
       varying float vFoliageTint;
       varying float vFoliageGroundHeight;
       varying float vFoliageCanopyHeight;
+      varying float vFoliageCrownDepth;
+      varying vec3 vFoliageHull;
+      varying vec4 vFoliageCluster;
       float foliageAngle;
       ${far ? 'varying mat3 vFoliageNormalTransform;' : ''}
       ${FOLIAGE_RIDGE_GLSL}
     `).replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
       vec3 foliageRoot = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
-      float foliageLift = foliageRidgeOffset(foliageRoot.xz);
+      float foliageLift = foliageRidgeOffset(foliageRoot);
       foliageRoot.y += foliageLift;
       vec3 foliageToEye = cameraPosition - foliageRoot;
       foliageAngle = atan(foliageToEye.x, foliageToEye.z) - iFoliage.y;
@@ -219,6 +245,29 @@ export function makeFoliageMaterial(template, part, uniforms, atmo) {
       vFoliageTint = 0.94 + iFoliage.w * 0.12;
       vFoliageGroundHeight = position.y * iFoliage.x;
       vFoliageCanopyHeight = clamp(position.y, 0.0, 1.0);
+      // Crown-scale ellipsoid coordinates: the cards have no self-shadowing, so
+      // depth into the crown and the hull normal stand in for canopy occlusion.
+      ${far ? `
+      float foliageHullX = position.x / uFoliageCrown.x;
+      float foliageHullY = (position.y - uFoliageCrown.y) / uFoliageCrown.z;
+      float foliageHullZ = sqrt(max(0.0, 1.0 - foliageHullX * foliageHullX - foliageHullY * foliageHullY));
+      float foliageHullC = cos(foliageAngle), foliageHullS = sin(foliageAngle);
+      vec3 foliageHullLocal = vec3(foliageHullX * foliageHullC + foliageHullZ * foliageHullS, foliageHullY,
+        -foliageHullX * foliageHullS + foliageHullZ * foliageHullC);
+      // Billboards only show the crown's outer surface; keep their mean occlusion
+      // equal to the visible outer leaves of the near model.
+      vFoliageCrownDepth = mix(0.82, 1.0, smoothstep(0.5, 1.0, length(vec2(foliageHullX, foliageHullY))));
+      vFoliageCluster = vec4(foliageHullX, foliageHullY, 0.0, iFoliage.z);` : `
+      vec3 foliageHullLocal = vec3(position.x / uFoliageCrown.x, (position.y - uFoliageCrown.y) / uFoliageCrown.z,
+        position.z / uFoliageCrown.x);
+      vFoliageCrownDepth = length(foliageHullLocal);
+      vFoliageCluster = vec4(foliageHullLocal, iFoliage.z);`}
+      vec3 foliageHullGradient = foliageHullLocal / uFoliageCrown.xzx;
+      vFoliageHull = mat3(modelMatrix) * (
+        instanceMatrix[0].xyz * foliageHullGradient.x / dot(instanceMatrix[0].xyz, instanceMatrix[0].xyz) +
+        instanceMatrix[1].xyz * foliageHullGradient.y / dot(instanceMatrix[1].xyz, instanceMatrix[1].xyz) +
+        instanceMatrix[2].xyz * foliageHullGradient.z / dot(instanceMatrix[2].xyz, instanceMatrix[2].xyz))
+        + vec3(0.0, 1e-5, 0.0);
       ${far ? 'transformed = vec3(transformed.x * cos(foliageAngle), transformed.y, -transformed.x * sin(foliageAngle));' : ''}
       float foliageSway = sin(uFoliageTime * 0.65 + iFoliage.z + transformed.y * 1.7) * 0.012 * max(transformed.y, 0.0) * max(transformed.y, 0.0);
       transformed.x += foliageSway;
@@ -229,11 +278,18 @@ export function makeFoliageMaterial(template, part, uniforms, atmo) {
       uniform float uFoliageSnow;
       uniform float uFoliageBare;
       uniform float uFoliageAutumn;
+      uniform vec3 uFoliageLightDir;
+      uniform vec3 uFoliageLightColor;
+      uniform float uFoliageNight;
+      uniform float uFoliageBacklight;
       varying float vFoliageCoverage;
       varying float vFoliageView;
       varying float vFoliageTint;
       varying float vFoliageGroundHeight;
       varying float vFoliageCanopyHeight;
+      varying float vFoliageCrownDepth;
+      varying vec3 vFoliageHull;
+      varying vec4 vFoliageCluster;
       ${far ? 'uniform sampler2D uFoliageNormalMap;\nvarying mat3 vFoliageNormalTransform;' : ''}
       ${far ? `vec2 foliageAtlasUv(float view, vec2 uv, float inset) {
         vec2 cell = vec2(mod(view, 4.0), floor(view / 4.0));
@@ -262,6 +318,8 @@ export function makeFoliageMaterial(template, part, uniforms, atmo) {
       normal = normalize(vFoliageNormalTransform * foliageObjectNormal);
     `);
     shader.fragmentShader = shader.fragmentShader.replace('#include <alphatest_fragment>', `#include <alphatest_fragment>
+      // Albedo removed by the scotopic shift below; the photopic headlight adds it back.
+      vec3 foliageScotopicShift = vec3(0.0);
       diffuseColor.a *= vFoliageCoverage;
       diffuseColor.rgb *= mix(0.66, 1.0, smoothstep(0.0, 0.85, vFoliageGroundHeight));
       ${leaf && !evergreen ? 'diffuseColor.a *= 1.0 - uFoliageBare;' : ''}
@@ -269,13 +327,23 @@ export function makeFoliageMaterial(template, part, uniforms, atmo) {
       ${evergreen ? 'diffuseColor.rgb *= vec3(0.96, 1.0, 0.97) * vFoliageTint;' : `
       float foliagePigmentMask = ${leaf ? '1.0' : 'smoothstep(0.0, 0.035, diffuseColor.g - max(diffuseColor.r, diffuseColor.b))'};
       float foliageLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-      float foliageVariation = clamp((vFoliageTint - 0.94) / 0.12, 0.0, 1.0);
+      // Pigment follows crown-scale leaf masses, not each texel's luminance, so
+      // autumn crowns read as clustered colour patches instead of pixel noise.
+      float foliageCluster = 0.5 + 0.5 * sin(vFoliageCluster.x * 3.7 + vFoliageCluster.z * 2.3 + vFoliageCluster.w * 1.9)
+        * cos(vFoliageCluster.y * 4.1 - vFoliageCluster.z * 3.1 + vFoliageCluster.w * 2.7);
+      float foliageVariation = clamp(clamp((vFoliageTint - 0.94) / 0.12, 0.0, 1.0) * 0.50 + foliageCluster * 0.50, 0.0, 1.0);
       vec3 foliageAutumnColor = mix(vec3(${autumn[0].join(', ')}), vec3(${autumn[1].join(', ')}), foliageVariation)
-        * clamp(foliageLuma * 5.0, 0.18, 1.20);
+        * mix(0.80, clamp(foliageLuma * 5.0, 0.18, 1.20), 0.45);
       diffuseColor.rgb *= mix(vec3(1.0), uFoliageTint, foliagePigmentMask);
       diffuseColor.rgb = mix(diffuseColor.rgb, foliageAutumnColor, uFoliageAutumn * foliagePigmentMask) * vFoliageTint;
       `}
       diffuseColor.rgb *= mix(0.76, 1.04, smoothstep(0.18, 0.92, vFoliageCanopyHeight));
+      // Scotopic vision: moonlit foliage loses chroma and shifts cool. Headlit
+      // foliage is photopic, so the lamp is shaded with the albedo before this shift.
+      float foliageNightLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+      vec3 foliagePhotopicColor = diffuseColor.rgb;
+      diffuseColor.rgb = mix(diffuseColor.rgb, foliageNightLuma * vec3(0.78, 0.92, 1.14), 0.60 * uFoliageNight);
+      foliageScotopicShift = foliagePhotopicColor - diffuseColor.rgb;
       ${far && !evergreen ? '}' : ''}` : ''}
     `);
     shader.fragmentShader = shader.fragmentShader.replace('#include <lights_physical_fragment>', `
@@ -284,6 +352,7 @@ export function makeFoliageMaterial(template, part, uniforms, atmo) {
       float foliageRootSnow = clamp(uFoliageSnow * 1.6, 0.0, 1.0) * (1.0 - smoothstep(0.12, 0.45, vFoliageGroundHeight))
         * smoothstep(0.15, 0.75, foliageWorldNormal.y);
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.70, 0.76, 0.80), foliageRootSnow);
+      foliageScotopicShift *= 1.0 - foliageRootSnow;
       ${leaf || far ? `
       ${far && !evergreen ? 'if (uFoliageBare < 0.5) {' : ''}
       float foliageSnowFace = smoothstep(0.12, 0.84, abs(foliageWorldNormal.y));
@@ -291,13 +360,42 @@ export function makeFoliageMaterial(template, part, uniforms, atmo) {
       float foliageSnowCover = uFoliageSnow * foliageLeafSignal * (0.07 + 0.83 * foliageSnowFace);
       vec3 foliageSnowColor = vec3(0.70, 0.76, 0.80) * mix(0.76, 1.0, vFoliageCanopyHeight);
       diffuseColor.rgb = mix(diffuseColor.rgb, foliageSnowColor, foliageSnowCover);
+      foliageScotopicShift *= 1.0 - foliageSnowCover;
+      // Snow settles on the upper, outward crown surface of each tree.
+      float foliageSnowCap = smoothstep(0.05, 0.65, normalize(vFoliageHull).y) * smoothstep(0.22, 0.80, vFoliageCanopyHeight)
+        * (0.55 + 0.45 * foliageSnowFace) * smoothstep(0.55, 0.95, vFoliageCrownDepth);
+      float foliageSnowCapCover = min(1.0, uFoliageSnow * 1.35) * foliageLeafSignal * foliageSnowCap;
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.80, 0.85, 0.90), foliageSnowCapCover);
+      foliageScotopicShift *= 1.0 - foliageSnowCapCover;
       ${far && !evergreen ? '}' : ''}
       ` : ''}
       }
       #include <lights_physical_fragment>
+      // Canopy self-occlusion: interior cards see less sky, and the crown side
+      // facing away from a light is in the crown's own shadow.
+      float foliageInterior = (1.0 - smoothstep(0.30, 1.0, vFoliageCrownDepth)) * ${leaf || far ? '1.0' : '0.5'};
+      vec3 foliagePhotopicShift = foliageScotopicShift * (1.0 - metalnessFactor);
+      vec3 foliageSpotDiffuse = vec3(0.0);
+      vec3 foliageSpotBase;
+    `).replace('#include <lights_fragment_begin>', foliageLightsChunk(leaf || far ? 0.65 : 0.30))
+      .replace('#include <aomap_fragment>', `#include <aomap_fragment>
+      float foliageSkyAO = mix(1.0, 0.42, foliageInterior) * mix(0.80, 1.0, smoothstep(-0.6, 0.5, normalize(vFoliageHull).y));
+      float foliageHullLight = smoothstep(-0.40, 0.60, dot(normalize(vFoliageHull), uFoliageLightDir));
+      reflectedLight.directDiffuse *= mix(1.0, foliageHullLight * (1.0 - 0.65 * foliageInterior), ${leaf || far ? '0.65' : '0.30'});
+      reflectedLight.indirectDiffuse *= foliageSkyAO * mix(1.0, 0.55, uFoliageNight);
+      reflectedLight.directDiffuse += foliageSpotDiffuse;
+    `);
+    if (leaf || far) shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `
+      // Low sun behind the crown transmits a warm rim through the outer leaves.
+      vec3 foliageLightView = normalize((viewMatrix * vec4(uFoliageLightDir, 0.0)).xyz);
+      float foliageForward = max(dot(normalize(-vViewPosition), foliageLightView), 0.0);
+      float foliageRim = smoothstep(0.60, 1.05, vFoliageCrownDepth);
+      outgoingLight += diffuseColor.rgb * uFoliageLightColor * uFoliageBacklight
+        * pow(foliageForward, 5.0) * (0.30 + 0.70 * foliageRim);
+      #include <opaque_fragment>
     `);
   };
-  material.customProgramCacheKey = () => `forest-field-seasonal-roots-v5-${template.kind}-${template.species}-${template.growthForm || 'woody'}-${part}`;
+  material.customProgramCacheKey = () => `forest-field-crown-light-v7-${template.kind}-${template.species}-${template.growthForm || 'woody'}-${part}`;
   try { atmo.register(material); }
   catch (error) { material.dispose(); throw error; }
   return material;
@@ -317,7 +415,8 @@ export class ForestField {
     this.pixelScale = 1000;
     this.uniforms = { uFoliageTime: { value: 0 }, uFoliagePixelScale: { value: 1000 },
       uFoliageTint: { value: new THREE.Color(1, 1, 1) }, uFoliageSnow: { value: 0 }, uFoliageBare: { value: 0 },
-      uFoliageAutumn: { value: 0 } };
+      uFoliageAutumn: { value: 0 }, uFoliageLightDir: { value: new THREE.Vector3(0, 1, 0) },
+      uFoliageLightColor: { value: new THREE.Color(0, 0, 0) }, uFoliageNight: { value: 0 }, uFoliageBacklight: { value: 0 } };
     this.assetPromise = Promise.resolve().then(() => loadAssets(renderer)).then(async assets => {
       if (this.disposed) { assets.dispose(); return; }
       this._pendingAssets = assets; this._initializing = true;
@@ -485,6 +584,7 @@ export class ForestField {
     this.uniforms.uFoliageSnow.value = seasonName === 'winter' ? 0.65 : 0;
     this.uniforms.uFoliageBare.value = seasonName === 'winter' ? 1 : 0;
     this.uniforms.uFoliageAutumn.value = seasonName === 'autumn' ? 1 : 0;
+    this._syncLight();
     for (const group of this.materials.values()) {
       const material = group.impostor;
       const template = material.userData.foliageTemplate;
@@ -492,6 +592,18 @@ export class ForestField {
       material.userData.foliageNormalMap.value = seasonName === 'winter' && template.bareImpostor
         ? template.bareImpostor.normalTexture : template.impostor.normalTexture;
     }
+  }
+
+  /** Mirror the atmosphere's key light (sun by day, moon at night) for crown shading. */
+  _syncLight() {
+    const atmo = this.atmo, palette = atmo?.palette;
+    if (!atmo?.sun || !palette) return;
+    const day = palette.dayness > 0.02;
+    this.uniforms.uFoliageLightDir.value.copy(day ? atmo.sunDir : atmo.moonDir);
+    this.uniforms.uFoliageLightColor.value.copy(atmo.sun.color).multiplyScalar(atmo.sun.intensity);
+    this.uniforms.uFoliageNight.value = palette.nightness;
+    // Transmission rim only for a low sun; a high sun is never behind the crowns.
+    this.uniforms.uFoliageBacklight.value = day ? 0.24 * palette.dayness * (1 - smoothstep(0.10, 0.45, atmo.sunDir.y)) : 0;
   }
 
   disposeMesh(mesh) {

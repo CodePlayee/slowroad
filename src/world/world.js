@@ -11,6 +11,10 @@ import { clamp, lerp, seedFrom } from '../core/rng.js';
 const HALF_PAVE = (R.laneWidth * R.lanes) / 2;
 const SHOULDER_EDGE = HALF_PAVE + R.shoulderWidth;
 const VERGE_EDGE = SHOULDER_EDGE + R.vergeWidth;
+// Shot-picking eyes: water must be in sight from a low chase-height camera; a
+// vista is judged from the elevated cine/vista cameras (camera/params.js up 17-24).
+const WATER_EYE = 3;
+const VISTA_EYE = 18;
 
 /** Road cross-section offset (metres, relative to centreline height) at |lateral| d. */
 export function crossSection(d) {
@@ -124,7 +128,11 @@ export class World {
     return b ? b.km : null;
   }
 
-  /** First point at/after fromKm where open water is visible near the road. */
+  /**
+   * First point at/after fromKm where open water (a river at least 30 m wide)
+   * lies within 260 m of the road and is in sight: the line from an eye
+   * WATER_EYE above the road to the water surface clears the ground.
+   */
   findWaterKm(fromKm = 0) {
     const rt = this.route;
     const start = rt.kmToS(fromKm + 0.05);
@@ -134,15 +142,28 @@ export class World {
       for (let lat = -260; lat <= 260; lat += 45) {
         const x = p.x - p.tz * lat, z = p.z + p.tx * lat;
         const f = this.hf.full(x, z, this._o);
-        if (f.dist < f.channelHalf && f.half > 15) return rt.sToKm(s);
+        if (f.dist < f.channelHalf && f.half > 15 && this._clearSight(p.x, p.y + WATER_EYE, p.z, x, f.waterY, z)) {
+          return rt.sToKm(s);
+        }
       }
     }
     return null;
   }
 
+  /** True when no ground rises above the straight sight line between two points. */
+  _clearSight(ax, ay, az, bx, by, bz, samples = 12) {
+    for (let k = 1; k < samples; k++) {
+      const t = k / samples;
+      if (this.ground(lerp(ax, bx, t), lerp(az, bz, t)) > lerp(ay, by, t) + 0.25) return false;
+    }
+    return true;
+  }
+
   /**
-   * A vista: road high relative to its surroundings with a long open sightline.
-   * Scored over the next ~14 km, not first-match.
+   * A vista: the stretch whose elevated forward view (eye VISTA_EYE above the
+   * road, +-20 deg about the heading) shows the most terrain 0.8-4 km away.
+   * Scored every 100 m over the next ~14 km, not first-match.  Sight lines
+   * start beyond the road's cut/fill, so they read the river-carved ground.
    */
   findVistaKm(fromKm = 0) {
     const rt = this.route;
@@ -150,19 +171,21 @@ export class World {
     const end = Math.min(rt.length, start + 14000);
     let best = null;
     const q = {};
-    for (let s = start; s < end; s += 60) {
+    for (let s = start; s < end; s += 100) {
       const p = rt.at(s, q);
-      const here = this.hf.smoothBase(p.x, p.z);
-      let below = 0, ahead = 0;
-      for (let a = 0; a < 8; a++) {
-        const th = (a / 8) * Math.PI * 2, rr = 700;
-        below += here - this.hf.smoothBase(p.x + Math.cos(th) * rr, p.z + Math.sin(th) * rr);
+      const eye = p.y + VISTA_EYE;
+      let seen = 0, all = 0;
+      for (let a = -2; a <= 2; a++) {
+        const th = p.heading + a * 0.17, cx = Math.cos(th), cz = Math.sin(th);
+        let maxTan = -Infinity;
+        for (let d = R.carveOuter; d <= 4000; d *= 1.1) {
+          const tan = (this.hf.ground(p.x + cx * d, p.z + cz * d) - eye) / d;
+          const visible = tan >= maxTan;
+          if (visible) maxTan = tan;
+          if (d >= 800) { all++; if (visible) seen++; }
+        }
       }
-      below /= 8;
-      for (let d = 250; d <= 2250; d += 250) {
-        ahead += Math.max(0, here - this.hf.smoothBase(p.x + p.tx * d, p.z + p.tz * d)) * 0.02;
-      }
-      const score = below + ahead * 3;
+      const score = seen / all;
       if (!best || score > best.score) best = { score, km: rt.sToKm(s) };
     }
     return best ? best.km : null;

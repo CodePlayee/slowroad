@@ -6,12 +6,14 @@ import * as THREE from 'three';
 import { TERRAIN as P } from './params.js';
 import { clamp } from '../core/rng.js';
 import { SURFACE_HASH_GLSL } from '../core/shaderNoise.js';
+import { MEADOW_FIELD_GLSL } from './meadowField.js';
 import { buildTerrainTileData, addQuadrantSkirts } from './mesh-data.js';
 import { TerrainWorkerPool } from './worker-pool.js';
 import { makeTile, parentTile, partitionIndices, selectCoverage } from './coverage.js';
 import { GRASS_COVERAGE_GLSL } from '../vegetation/grassCoverage.js';
 import { terrainResolution, nearRoadCorridorIntersects } from './surfaceSampler.js';
 import { PlantContactTexture } from './plantContact.js';
+import { farRidgeGlsl } from './farRidge.js';
 
 const CONTACT_RECORDS_PER_FRAME = 2048;
 // The current tree/shrub lattices admit <= 6908 candidates per snapped circle,
@@ -47,40 +49,32 @@ varying float vFarY;
 uniform float uFarRidgeAmp;
 uniform float uFarRidgeNear;
 uniform float uFarRidgeFar;
+${farRidgeGlsl({ amp: 'uFarRidgeAmp', near: 'uFarRidgeNear', far: 'uFarRidgeFar' })}
 `;
 const TERRAIN_VERT_BODY = /* glsl */`
   float terrainMorph = clamp((uTerrainTime - aMorphStart) / ${P.morphSeconds.toFixed(3)}, 0.0, 1.0);
   transformed.y = mix(aParentHeight, transformed.y, terrainMorph);
-  // Broad crest layers are a visual-only LOD detail.  They fade in with distance,
-  // so the analytic field used by route, water, vegetation, and bridges is unchanged.
+  // Distant ridge rows are a visual-only LOD detail (farRidge.js): zero inside
+  // uFarRidgeNear, so the analytic field used by route, water, vegetation and
+  // bridges is unchanged. Foliage evaluates the same lift at its roots.
   vec3 farWorld = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;
-  vec2 farUv = farWorld.xz;
-  // Three long, skewed ridge trains add broad highland silhouettes to the far
-  // clipmap rings without changing the sampled world height used by roads,
-  // rivers, bridges, or streaming.  The nested sin() warp keeps the bands
-  // organic instead of reading as a repeating corrugated strip.
-  float crestA = 1.0 - abs( sin( dot( farUv, vec2( 0.00016, 0.000095 ) )
-    + sin( farUv.x * 0.000047 ) * 1.7 + sin( farUv.y * 0.000031 ) * 0.8 ) );
-  float crestB = 1.0 - abs( sin( dot( farUv, vec2( -0.000071, 0.00019 ) )
-    + sin( farUv.y * 0.000061 ) * 1.4 + sin( farUv.x * 0.000022 ) * 0.9 ) );
-  float crestC = 1.0 - abs( sin( dot( farUv, vec2( 0.00031, -0.00022 ) )
-    + sin( dot( farUv, vec2( 0.00009, 0.00013 ) ) ) * 0.55 ) );
-  // A very low-frequency contour keeps the three crest trains from reading as
-  // parallel strips. It is evaluated in the vertex shader only, so no samples or
-  // additional geometry are introduced.
-  float contourA = 0.5 + 0.5 * sin( dot( farUv, vec2( 0.000043, -0.000027 ) )
-    + sin( farUv.x * 0.000019 + farUv.y * 0.000013 ) * 1.2 );
-  float contourB = 0.5 + 0.5 * cos( dot( farUv, vec2( -0.000021, 0.000036 ) )
-    + sin( farUv.y * 0.000016 ) * 0.9 );
-  float farShape = ( smoothstep( 0.16, 0.86, crestA ) * ( 0.38 + contourA * 0.18 )
-    + smoothstep( 0.18, 0.84, crestB ) * ( 0.24 + contourB * 0.16 )
-    + smoothstep( 0.22, 0.82, crestC ) * 0.18 ) - 0.34;
-  float ridgeShoulder = smoothstep( 0.34, 0.72,
-    crestA * ( 0.46 + contourA * 0.16 ) + crestB * ( 0.30 + contourB * 0.08 ) );
-  float farFade = smoothstep( uFarRidgeNear, uFarRidgeFar,
-    distance( farWorld.xz, cameraPosition.xz ) );
-  transformed.y += ( farShape * uFarRidgeAmp
-    + ( ridgeShoulder - 0.42 ) * uFarRidgeAmp * 0.34 ) * farFade;
+  float farLift = farRidgeLift( farWorld );
+  if ( farLift > 0.0 ) {
+    // Shade the lifted landform, not the flat one beneath it: add the lift's
+    // derivative along the ground (y steps follow the mesh slope) to the slope.
+    vec3 farNormal = normalize( objectNormal );
+    vec2 groundSlope = -farNormal.xz / max( farNormal.y, 0.05 );
+    const float farStep = 24.0;
+    vec2 liftSlope = vec2(
+      farRidgeLift( farWorld + vec3( farStep, groundSlope.x * farStep, 0.0 ) ) - farLift,
+      farRidgeLift( farWorld + vec3( 0.0, groundSlope.y * farStep, farStep ) ) - farLift ) / farStep;
+    vec2 liftedSlope = groundSlope + liftSlope;
+    objectNormal = normalize( vec3( -liftedSlope.x, 1.0, -liftedSlope.y ) );
+    #ifndef FLAT_SHADED
+      vNormal = normalize( normalMatrix * objectNormal );
+    #endif
+    transformed.y += farLift;
+  }
   vSurf = aSurf;
   vEcology = aEcology;
   vRoadDist = aRoadDist;
@@ -121,6 +115,7 @@ ${GRASS_COVERAGE_GLSL}
 
 ${SURFACE_HASH_GLSL}
 float thash( vec2 p ) { return surfaceHash(p); }
+${MEADOW_FIELD_GLSL}
 float tvn( vec2 p ) {
   vec2 i = floor( p ), f = fract( p );
   f = f * f * ( 3.0 - 2.0 * f );
@@ -143,6 +138,8 @@ const TERRAIN_FRAG_BODY = /* glsl */`
   // World-space layers avoid clipmap seams while keeping broad meadow patches
   // coherent from the road edge to the distant hills.
   vec2 uv = vWPosT.xz;
+  // Metres per pixel along the worse screen axis: fine rim octaves fade with it.
+  float uvFootprint = max(length(dFdx(uv)), length(dFdy(uv)));
   float macro = tfbm( uv * 0.00135 );
   float meso  = tfbm( uv * 0.0085 + vec2( 13.7, -8.1 ) );
   float relief = tfbm( uv * 0.018 + vec2( -5.0, 17.0 ) );
@@ -180,7 +177,9 @@ const TERRAIN_FRAG_BODY = /* glsl */`
   // eroded slope breaks.  This is intentionally subtle at the horizon.
   float soil = smoothstep( 0.24, 0.62, meso + ( 0.5 - moist ) * 0.55 ) * ( 1.0 - rk * 0.58 );
   soil = clamp( soil + slopeSoil * ( 0.18 + 0.28 * ( 1.0 - moist ) ), 0.0, 1.0 );
-  col = mix( col, uSoil * ( 0.76 + 0.42 * micro ), soil * 0.46 );
+  // Bare patches read as thatch-covered turf base, not open brown dirt.
+  vec3 thatchCol = mix( uSoil, uGrassDry * 0.62, 0.38 ) * ( 0.80 + 0.36 * micro );
+  col = mix( col, thatchCol, soil * 0.32 );
   col *= 0.82 + 0.34 * meso + 0.10 * relief;
   vec3 rockCol = uRock * ( 0.72 + 0.48 * tfbm( uv * 0.034 ) );
   // A muted upland belt sits between meadow and exposed rock.  This broad
@@ -191,31 +190,24 @@ const TERRAIN_FRAG_BODY = /* glsl */`
 
   col = mix( col, uSand * ( 0.88 + 0.24 * meso ), clamp( shore, 0.0, 1.0 ) );
 
-  // A road-aware scuff layer is carried by the terrain vertices, so the edge
-  // remains continuous when the road ribbon streams across clipmap chunks.
-  // It is deliberately soil/grass biased rather than another pale tan band.
-  // Perturb the daylight line in world space.  The same noise follows the road
-  // across clipmap tiles, removing the straight, hard polygon edge while keeping
-  // the transition coherent at the scale of tyre-worn ground.
-  // Fine wear interrupts the boundary without widening it into a pale apron.
+  // Road-adjacent ground. The road ribbon stops at its crumbled asphalt lip, so
+  // this layer owns everything beyond it: a narrow dirt/gravel rim, then turf
+  // that roots in tufts and closes up within ~1.5 m. It is carried by the
+  // terrain vertices' road distance, so it stays continuous across clipmap
+  // chunks and ribbon segments. The world-space noise makes the rim ragged.
   float scuffNoise = mix(tvn(uv * 0.18 + vec2(21.0, -14.0)),
-    tvn(uv * 1.60 + vec2(-3.0, 8.0)), 0.32);
+    mix(0.5, tvn(uv * 1.60 + vec2(-3.0, 8.0)), 1.0 - smoothstep(0.35, 1.10, uvFootprint * 1.60)), 0.32);
   float roadEdge = vRoadDist + (scuffNoise - 0.5) * 1.15 + (micro - 0.5) * 0.30;
+  // 1 on the bare rim, 0 where established turf begins.
   float verge = 1.0 - smoothstep( uRoadScuffInner, uRoadScuffOuter, roadEdge );
-  float shoulder = 1.0 - smoothstep(uRoadScuffInner - 0.20, uRoadScuffInner + 1.40, roadEdge);
-  // Keep the graded shoulder close to the ground's darker soil value.  The
-  // previous dry-grass endpoint became a broad, pale apron on coarse rings;
-  // this endpoint remains biome-aware without introducing a second flat band.
+  // Contact band hugging the pavement lip.
+  float shoulder = 1.0 - smoothstep(uRoadScuffInner - 0.55, uRoadScuffInner + 0.45, roadEdge);
+  // Turf at the rim is drier and dustier than the open field.
   vec3 scuffBase = mix( uSoil * ( 0.66 + 0.28 * scuffNoise ), uGrassDry * 0.84,
     smoothstep( 0.22, 0.76, moist ) );
-  // Preserve each terrain tile's macro/rock value under the scuff so the road
-  // edge cannot become a separate tan band in the mid and far views.
   vec3 vergeCol = mix( col, scuffBase, 0.52 + 0.12 * scuffNoise );
   vergeCol = mix( vergeCol, uGrassLush, smoothstep( 0.60, 0.94, moist ) * 0.28 );
   col = mix( col, vergeCol, verge * uTerrainLayerStrength * 0.82 );
-  // Small occlusion at the daylight line reads as contact with the road mesh,
-  // while the distance fade prevents a dark halo in the open field.
-  col *= 1.0 - shoulder * uRoadContactDarken * ( 0.68 + 0.32 * scuffNoise );
 
   // Low-frequency self-shadowing gives hillsides and damp pockets a continuous
   // value structure even when texture detail is disabled in the far field.
@@ -253,11 +245,22 @@ const TERRAIN_FRAG_BODY = /* glsl */`
     * (1.0 - clamp(shore, 0.0, 1.0)) * (1.0 - rk)
     * (1.0 - clamp(uSnowAmount, 0.0, 1.0));
   float turfFray = smoothstep(0.055, 0.20, coarseGrassValue * 0.65 + fineGrassValue * 0.35);
-  float meadowTexture = meadowSurface * (1.0 - verge * (1.0 - 0.38 * turfFray))
-    * smoothstep(uRoadScuffInner - 0.15, uRoadScuffInner + 1.05, vRoadDist);
+  // Thresholding the blade texture only reads as tufts while blades span a few
+  // pixels; past that it breaks into pixel speckle, so the fray settles to its
+  // near-field mean. Snow buries the blades outright: the winter melt line then
+  // follows only the smooth world-space rim noise.
+  turfFray = mix(turfFray, 0.5, max(smoothstep(0.03, 0.10, uvFootprint), clamp(uSnowAmount, 0.0, 1.0)));
+  // Turf creeps onto the rim as separate tufts: the world-fixed blade texture
+  // and the scuff noise decide which patches have rooted. The squared ramp keeps
+  // the pavement lip bare while tufts close up quickly past the rim. Under snow
+  // the same edge widens into a soft slush-to-snow ramp instead of a tuft line.
+  float tuftField = turfFray * 0.70 + scuffNoise * 0.30;
+  float tuftEdge = mix(0.10, 0.40, clamp(uSnowAmount, 0.0, 1.0));
+  float roadTurf = smoothstep(-tuftEdge, tuftEdge, tuftField - mix(-0.25, 1.0, verge * verge));
+  float meadowTexture = meadowSurface * roadTurf;
   float woodlandSurface = (1.0 - smoothstep(0.34, 0.78, slope))
     * (1.0 - clamp(shore, 0.0, 1.0)) * (1.0 - rk)
-    * smoothstep(uRoadScuffInner - 0.15, uRoadScuffInner + 1.05, vRoadDist);
+    * roadTurf;
   vec2 plantContactUv = (uv - uPlantContactOrigin) / uPlantContactSpan;
   float plantContactBounds = step(0.0, plantContactUv.x) * step(plantContactUv.x, 1.0)
     * step(0.0, plantContactUv.y) * step(plantContactUv.y, 1.0);
@@ -296,6 +299,25 @@ const TERRAIN_FRAG_BODY = /* glsl */`
     * 0.64 * (0.88 + 0.20 * meso + 0.12 * relief);
   col = mix(col, meadowCol, meadowTexture * 0.90);
   col *= mix(1.0, detailGrain, detailBlend);
+  // A continuous sward: tussock (~2 m) and patch (~9 m) value/hue variation keeps
+  // the turf between grass models from reading as one flat sheet. The tussock
+  // octave fades with pixel footprint so it never shimmers in the far rings.
+  float swardPatch = tvn(uv * 0.11 + vec2(-17.0, 31.0));
+  float swardTuft = tvn(mat2(0.6, -0.8, 0.8, 0.6) * uv * 0.48 + vec2(5.0, -12.0));
+  float swardTuftFade = 1.0 - smoothstep(0.30, 1.00, length(fwidth(uv)) * 0.48);
+  float sward = swardPatch * 0.62 + mix(0.5, swardTuft, swardTuftFade) * 0.38;
+  float swardSurface = (1.0 - rk) * (1.0 - clamp(shore, 0.0, 1.0));
+  col *= mix(1.0, 0.86 + 0.28 * sward, swardSurface);
+  col = mix(col, col * vec3(0.90, 1.05, 0.84), smoothstep(0.52, 0.84, swardPatch) * 0.45 * swardSurface);
+  // Open-meadow field (30-150 m) above the tussock/patch octaves: hay, pale and
+  // dark green patches plus wind-lodged swaths with a view-dependent grain. The
+  // grass models evaluate the same functions at their roots, so blades and turf
+  // shift together. Fine octave and swaths fade once they fall under a few pixels.
+  vec2 meadowFootprint = vec2(length(dFdx(uv)), length(dFdy(uv)));
+  float meadowDetail = 1.0 - smoothstep(3.0, 9.0, sqrt(meadowFootprint.x * meadowFootprint.y));
+  vec3 meadowField = meadowSward(uv, moist, meadowDetail);
+  vec3 meadowFieldTint = meadowTint(meadowField) * meadowSheen(uv, cameraPosition, meadowField.z);
+  col *= mix(vec3(1.0), meadowFieldTint, swardSurface);
   // Forest cover uses the same seeded ecology as the plants, not camera range.
   float moss = smoothstep(0.32, 0.76, moist * 0.48 + clump * 0.32 + meso * 0.20);
   // Keep the actual leaf/humus albedo: a luminance-only multiplier erased the
@@ -304,9 +326,19 @@ const TERRAIN_FRAG_BODY = /* glsl */`
   vec3 litterSeason = mix(vec3(0.82, 0.94, 0.79), vec3(1.05, 0.88, 0.64), uLitterAutumn);
   vec3 woodlandCol = litterDetail * litterSeason * litterPatch
     * mix(vec3(1.0), vec3(0.84, 0.96, 0.83), moss * 0.45);
+  // Summer forest floor is largely grown over: shaded grass, fern and seedling
+  // patches at crown scale cover the litter, which returns in autumn.
+  float floorPatch = tvn(uv * 0.21 + vec2(11.0, 5.0));
+  vec3 understoryCol = mix(uGrassLush * vec3(0.58, 0.70, 0.52), uGrassDry * vec3(0.55, 0.62, 0.42),
+    0.30 + 0.35 * (1.0 - moist)) * (0.74 + 0.40 * floorPatch);
+  float groundCover = smoothstep(0.42, 0.74, floorPatch * 0.70 + clump * 0.30) * (1.0 - 0.80 * uLitterAutumn);
+  woodlandCol = mix(woodlandCol, understoryCol * 0.92, groundCover * 0.65);
   float litterExposure = mix(1.0, winterThin, winterAmount);
   woodlandCol = mix(uSoil * vec3(0.42, 0.42, 0.38), woodlandCol, litterExposure);
-  float woodlandWeight = forestFloor * woodlandSurface;
+  // Trees keep their road clearance, so no canopy (and no litter) covers the
+  // grass corridor even where the roadside forest-cover field is high.
+  float canopyReach = smoothstep(9.0, 22.0, vRoadDist);
+  float woodlandWeight = forestFloor * woodlandSurface * canopyReach;
   float litterWeight = woodlandWeight * litterShare;
   float mossWeight = woodlandWeight * mossShare;
   vec3 mossCol = mix(uGrassDry * vec3(0.60, 0.70, 0.48), uGrassLush * vec3(0.55, 0.63, 0.44),
@@ -314,14 +346,27 @@ const TERRAIN_FRAG_BODY = /* glsl */`
   mossCol *= mix(1.0, 0.85 + 0.15 * coarseGrassGrain, litterExposure);
   // Blend after the background grain so partially wooded boundaries do not
   // multiply leaf albedo twice. The retained turf does not end at the model LOD.
+  // The turf share under a canopy is shaded understory, not open sandy meadow.
+  col = mix(col, understoryCol, woodlandWeight * 0.70);
   col = col * (1.0 - litterWeight - mossWeight) + woodlandCol * litterWeight + mossCol * mossWeight;
 
   // Turf keeps its root occlusion when models yield to texture-only ground.
   // Composition is world-fixed; only physical surface exclusions mask it out.
   float meadowContact = meadowSurface * (1.0 - litterWeight - mossWeight)
     * (0.35 + 0.65 * understoryGrowth)
-    * smoothstep(uRoadScuffInner - 0.15, uRoadScuffInner + 1.05, vRoadDist);
+    * roadTurf;
   col *= 1.0 - meadowContact * uMeadowContactStrength * (0.82 + 0.18 * meso);
+
+  // Bare rim between the pavement lip and the first tufts: dark soil with
+  // gravel. It is ordinary lit albedo (no alpha or emissive path), and its mean
+  // matches the ribbon's uEdgeGravel so the asphalt lip has no pale seam.
+  float rimGravel = mix(tvn(uv * 0.9 + vec2(-13.0, 5.0)),
+    tvn(mat2(0.8, -0.6, 0.6, 0.8) * uv * 3.4 + vec2(7.0, 2.0)),
+    0.55 * (1.0 - smoothstep(0.35, 1.10, uvFootprint * 3.4)));
+  vec3 rimSoil = mix(uSoil * 0.62, uRock * 0.50, 0.30)
+    * (0.82 + 0.20 * scuffNoise + 0.26 * (rimGravel - 0.5));
+  col = mix(col, rimSoil, 1.0 - roadTurf);
+  col *= 1.0 - shoulder * uRoadContactDarken * ( 0.68 + 0.32 * scuffNoise );
 
   // Snow is a continuous field, but not a flat white decal.  Keep the broad
   // shelf on gentle ground while letting steep rock faces and road contact
@@ -334,6 +379,13 @@ const TERRAIN_FRAG_BODY = /* glsl */`
     + ( meso - 0.5 ) * 0.24 + ( relief - 0.5 ) * 0.16, 0.34, 1.0 );
   float snowMounds = tvn(uv * 0.18 + vec2(relief, meso) * 2.0);
   float snowCrust = tvn(mat2(0.8, -0.6, 0.6, 0.8) * uv * vec2(1.1, 0.3) + vec2(17.0, -4.0));
+  // Wind-shaped drifts (~20 m dunes) and sastrugi ripples stretched across the
+  // prevailing wind. Ripples fade with pixel footprint to stay alias-free.
+  float snowDune = tvn(mat2(0.8, 0.6, -0.6, 0.8) * uv * vec2(0.032, 0.070) + vec2(meso, macro) * 1.5);
+  vec2 snowRippleUv = mat2(0.8, 0.6, -0.6, 0.8) * uv * vec2(0.30, 2.10) + vec2(snowDune * 3.0, 0.0);
+  float snowRippleFade = 1.0 - smoothstep(0.30, 1.00, max(length(dFdx(snowRippleUv)), length(dFdy(snowRippleUv))));
+  float snowRipple = (tvn(snowRippleUv + vec2(-41.0, 13.0)) - 0.5) * snowRippleFade;
+  float snowShapeFade = 1.0 - smoothstep(140.0, 560.0, length(vViewPosition));
   float snowReliefWeight = 1.0 - smoothstep(65.0, 220.0, length(vViewPosition));
   float snowAccumulation = mix(0.5, smoothstep(0.26, 0.74, snowMounds * 0.68 + snowCrust * 0.32), snowReliefWeight);
   snowAccumulation = clamp(snowAccumulation + rootSnowBank * 0.10 - rootSnowPocket * 0.08, 0.0, 1.0);
@@ -342,7 +394,10 @@ const TERRAIN_FRAG_BODY = /* glsl */`
   snow *= mix(0.66, 1.20, snowAccumulation);
   snow = max(snow, uSnowAmount * snowShelf * (0.78 + 0.12 * snowAccumulation - 0.50 * winterThin));
   snow *= 1.0 - rk * 0.56;
-  snow *= 1.0 - verge * ( 0.18 + 0.10 * scuffNoise );
+  // Thrown slush and tyre spray thin the snow on the bare rim; the widened,
+  // world-space rim ramp keeps the melt line soft and ragged at metre scale
+  // instead of a stepped grey ledge or a pixel-speckled tuft edge.
+  snow *= 1.0 - (1.0 - roadTurf) * (0.28 + 0.24 * scuffNoise) - shoulder * 0.18;
   snow *= step( 0.001, uSnowAmount );
   snow += winterAmount * snowShelf * (rootSnowBank * 0.035 - rootSnowPocket * 0.07);
   snow = clamp(snow, 0.0, 1.0);
@@ -359,9 +414,15 @@ const TERRAIN_FRAG_BODY = /* glsl */`
   snowCol = mix( snowCol, uSnow * vec3( 0.76, 0.82, 0.92 ),
     smoothstep( 0.28, 0.82, slope ) * 0.34 );
   snowCol *= 1.0 + snowFine * 0.055 * (0.55 + 0.45 * snowAccumulation);
+  // Drift hollows see less sky and hold blue shade; crests and ripple ridges
+  // catch more. Baked as a mild albedo cue so overcast winter light keeps form.
+  float snowHollow = 1.0 - smoothstep(0.30, 0.72, snowDune * 0.70 + mix(0.5, snowMounds, snowShapeFade) * 0.30);
+  snowCol *= 0.93 + 0.10 * (1.0 - snowHollow) + snowRipple * 0.08;
+  snowCol = mix(snowCol, snowCol * vec3(0.88, 0.93, 1.03), snowHollow * 0.55);
   col = mix( col, snowCol, snow );
   #else
   float snow = 0.0, snowMounds = 0.0, snowCrust = 0.0, snowFine = 0.0;
+  float snowDune = 0.0, snowRipple = 0.0, snowShapeFade = 0.0;
   #endif
 
   // Meter-scale snow relief and shallow turf roots alter lighting, not geometry.
@@ -375,6 +436,9 @@ const TERRAIN_FRAG_BODY = /* glsl */`
     * surfaceReliefFade;
   terrainMicroHeight += snowFine * 0.0006 * snow * surfaceReliefFade;
   terrainMicroHeight += (rootSnowBank * 0.012 - rootSnowPocket * 0.004) * winterAmount * surfaceReliefFade;
+  // Drift and ripple relief shade the snow by the real key light out to the mid field.
+  terrainMicroHeight += (snowDune * 0.55 + mix(0.5, snowMounds, snowShapeFade) * 0.16 + snowRipple * 0.015)
+    * snow * snowShapeFade;
 
   col *= mix(0.86 + 0.26 * micro + 0.08 * relief, 0.97 + 0.04 * meso + 0.025 * relief, snow);
   // Separate distant terrain into broad, atmospheric ridge values.  This is a
@@ -421,6 +485,18 @@ const TERRAIN_FRAG_BODY = /* glsl */`
   float landLight = smoothstep( 0.28, 0.76,
     tfbm( uv * 0.00042 + vec2( -9.0, 13.0 ) ) * 0.62 + farAlt * 0.38 );
   col *= mix( 0.88, 1.07, landLight ) * ( 1.0 - farLayer * 0.06 * ( 1.0 - ridgeMid ) );
+  // Tree models end at 1.8-2 km (FOREST_LOD). Past that the woodland would read as
+  // bare forest floor, so the canopy itself is painted from the same biome cover
+  // the trees are placed from: dark crown masses with stand-scale tone breaks,
+  // which the aerial pass turns into darker blue-green patches between fields.
+  float farCanopy = smoothstep( 0.32, 0.68, canopy ) * smoothstep( 1500.0, 2100.0, terrainDistance )
+    * ( 1.0 - rk ) * ( 1.0 - clamp( shore, 0.0, 1.0 ) )
+    * ( 1.0 - smoothstep( ${(P.treeLine - 40).toFixed(1)}, ${(P.treeLine + 40).toFixed(1)}, alt ) );
+  float standTone = mix( 0.5, tvn( uv * 0.0065 + vec2( 5.3, -2.9 ) ), 1.0 - smoothstep( 40.0, 120.0, uvFootprint ) );
+  float crownTone = mix( 0.5, tvn( uv * 0.045 + vec2( 3.1, -7.4 ) ), 1.0 - smoothstep( 6.0, 20.0, uvFootprint ) );
+  vec3 canopyCol = mix( uGrassLush * vec3( 0.30, 0.28, 0.44 ), uGrassLush * vec3( 0.44, 0.42, 0.56 ),
+    clamp( standTone * 0.65 + crownTone * 0.35, 0.0, 1.0 ) );
+  col = mix( col, canopyCol, farCanopy * 0.85 );
 
   // Winter is a continuous snow surface, not a white decal on selected tiles.
   // Re-apply a restrained snow field after the distance ridge pass so far terrain
@@ -468,6 +544,10 @@ const TERRAIN_LIGHT_BODY = /* glsl */`
     * mix(1.0, uCanopyWinterOcclusion, winterAmount);
   reflectedLight.directDiffuse *= mix(1.0, uCanopyDirectTransmission, canopyOcclusion);
   reflectedLight.indirectDiffuse *= mix(1.0, uCanopyIndirectTransmission, canopyOcclusion);
+  // Sun flecks: the canopy is not a uniform filter. World-fixed crown-scale gaps
+  // leave bright patches between shade pools; the mean transmission stays near 1.
+  float canopyFleck = smoothstep(0.50, 0.78, tvn(uv * 0.16 + vec2(-23.0, 7.0)) * 0.70 + micro * 0.30);
+  reflectedLight.directDiffuse *= mix(1.0, 0.55 + 1.25 * canopyFleck, canopyOcclusion * (1.0 - 0.6 * winterAmount));
   reflectedLight.directDiffuse *= 1.0 - plantContact * mix(0.22, 0.10, winterAmount);
   reflectedLight.indirectDiffuse *= 1.0 - plantContact * mix(0.30, 0.14, winterAmount);
 `;
@@ -584,7 +664,7 @@ export class Terrain {
         .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n' + TERRAIN_NORMAL_BODY)
         .replace('#include <aomap_fragment>', '#include <aomap_fragment>\n' + TERRAIN_LIGHT_BODY);
     };
-    this.material.customProgramCacheKey = () => 'terrain-season-specialized-v13';
+    this.material.customProgramCacheKey = () => 'terrain-season-specialized-v14';
     atmo.register(this.material);
     this.applyPalette();
   }
@@ -985,8 +1065,8 @@ export class Terrain {
     data.indices = partition.indices;
     geometry.setIndex(new THREE.BufferAttribute(partition.indices, 1));
     geometry.computeBoundingSphere();
-    // The existing distant-ridge shader displaces vertices beyond CPU bounds.
-    geometry.boundingSphere.radius += P.farRidgeAmp * 2;
+    // The distant-ridge shader lifts vertices by 0..farRidgeAmp beyond CPU bounds.
+    geometry.boundingSphere.radius += P.farRidgeAmp;
     const mesh = new THREE.Mesh(geometry, [material]);
     mesh.position.set(tile.x0 + tile.C / 2, 0, tile.z0 + tile.C / 2);
     mesh.matrixAutoUpdate = false;
@@ -999,7 +1079,8 @@ export class Terrain {
 
   _publish(tile, data) {
     if (!this.requests.has(tile.key) || this.chunks.has(tile.key)) return;
-    data = addQuadrantSkirts(data, data.maxY - data.minY + P.skirtDepth + P.farRidgeAmp * 2);
+    // Neighbouring LODs sample the lift at different vertices; their edge gap is < farRidgeAmp.
+    data = addQuadrantSkirts(data, data.maxY - data.minY + P.skirtDepth + P.farRidgeAmp);
     const mesh = this._mesh(data, this.material, tile);
     mesh.receiveShadow = tile.l <= 1;
     mesh.castShadow = tile.l === 0;

@@ -79,6 +79,29 @@ The baked environment stayed unchanged across repeated frames. See
 `/tmp/slowroad-car-lighting-20260929/` and the subsequent chroma-balanced
 captures in `/tmp/slowroad-car-lighting-balanced-20260929/`.
 
+## Rear-View Mirror
+
+The authored mirror glass (32 triangles of `Roof_Internal_ChromePlastic`) samples
+white, fully metallic, roughness ~0.1 texels. Its only reflection source is the
+sky/ground-only PMREM above, so it rendered as a blank white plate.
+`src/vehicle/mirror.js` splits those triangles into a second material group with
+an unlit material and no extra render pass. Its normal is re-aimed so the eye's
+ray to the glass centre reflects straight back through the rear window. Along the
+true reflected ray it draws the shared sky function, plus an analytic scene behind
+the car: the road with its markings (dashes scroll with distance driven), verges,
+roadside tree lines and distant hills. These are lit by the scene's sun, hemisphere
+and ambient light, faded toward the horizon sky, then multiplied by rear-glass
+transmission and mirror reflectance (0.59 overall). This approximates the view
+behind the car, not a real reflection of the streamed world.
+
+## Low-Beam Footprint
+
+A surface facing the lamp receives about z/h times the irradiance of the road at
+the same distance. The cookie therefore ends its cut-off at the horizon and fades
+rays whose road-plane landing point is past the paved edges. Verge grass, cut
+slopes and walls near lamp height then stay in the road's irradiance range.
+`vehicle-lighting.test.mjs` checks these ratios.
+
 ```sh
 node --test gauntlet/*.test.mjs
 GAUNTLET_URL=http://127.0.0.1:5190 node gauntlet/run-round.mjs \

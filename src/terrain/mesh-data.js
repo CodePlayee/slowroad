@@ -1,4 +1,5 @@
 import { clamp, smoothstep } from '../core/rng.js';
+import { ROAD } from '../road/params.js';
 import { World } from '../world/world.js';
 import { grassClump, forestCover, roadsideTreeCover } from '../vegetation/biome.js';
 import { captureSurfaceConfig } from './surfaceSampler.js';
@@ -39,6 +40,18 @@ export function* buildTerrainTileData(world, tile, options) {
   return data;
 }
 
+// The verge attribute must measure distance to the pavement, not to its plan view.
+// Under a bridge the ground lies metres below the deck, so fold that drop in and the
+// banks keep natural turf instead of a scuffed shoulder. Approaches (bridge = 0) and
+// abutments where the ground meets the deck (drop ~ 0) keep the horizontal distance.
+function vergeDistance(world, x, z, sm) {
+  if (!(sm.bridge > 0.001)) return sm.roadDist;
+  const p = world.route.nearest(x, z, ROAD.carveOuter);
+  if (!p) return sm.roadDist;
+  const drop = Math.max(0, p.y - sm.y) * sm.bridge;
+  return Math.hypot(sm.roadDist, drop);
+}
+
 /** Renderer-independent terrain buffers; row yields also support the fallback. */
 export function* buildTerrainData(world, r, { resolution: N, skirtDepth }) {
   if (!Number.isInteger(N) || N < 1 || N > 512) throw new RangeError('Invalid terrain resolution');
@@ -72,7 +85,7 @@ export function* buildTerrainData(world, r, { resolution: N, skirtDepth }) {
           * smoothstep(sm.channelHalf * 3.2, sm.channelHalf * 0.8, sm.riverDist), 0, 1)
         : 0;
       surf[k4 + 3] = sm.y;
-      roadDist[j * (N + 1) + i] = Math.min(sm.roadDist, 255);
+      roadDist[j * (N + 1) + i] = Math.min(vergeDistance(world, x, z, sm), 255);
       const k2 = (j * (N + 1) + i) * 2;
       eco[k2] = roadsideTreeCover(world, x, z, sm.roadDist, forestCover(x, z, biomeSeed), biomeSeed, probeRoad);
       eco[k2 + 1] = grassClump(x, z, seed);

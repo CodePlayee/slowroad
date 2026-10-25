@@ -1,7 +1,8 @@
 // src/road/route.js
 // Routes a scenic 2-lane road over the heightfield: a cost-driven walk that prefers
-// gentle grades, low ground and square river crossings, then a smoothed vertical
-// profile, then bridge envelopes where it crosses water.
+// gentle grades, hillside shelves with a view over valley floors, and square river
+// crossings, then a smoothed vertical profile, then bridge envelopes where it
+// crosses water.
 //
 // Everything here is deterministic given (heightfield seed, route seed).
 
@@ -22,6 +23,7 @@ export class Route {
     this.bridges = [];
     this.cellSize = 64;
     this.grid = new Map();
+    this._probe = {};       // scratch for the walk's look-ahead heightfield sample
   }
 
   // ------------------------------------------------------------------ build
@@ -50,47 +52,51 @@ export class Route {
     let x = 0, z = 0, th = a0, prevD = 0;
     pts.push({ x, z });
 
-    const probe = (px, pz) => {
-      const r = R.probeRadius;
-      return 0.25 * (hf.smoothBase(px + r, pz) + hf.smoothBase(px - r, pz)
-        + hf.smoothBase(px, pz + r) + hf.smoothBase(px, pz - r));
-    };
+    // The landform term (see _sideTerm) varies smoothly across the candidate
+    // fan, so it is probed on the fan's two edges and centre only and
+    // interpolated quadratically in between: three probe sets per step, not nine.
+    const C = R.candidates, mid = (C - 1) / 2;
+    const fo = {};
 
     let hCur = hf.natural(x, z);
     for (let i = 1; i < n; i++) {
       const s = i * step;
       const desired = a0 + R.wanderAmp * fbm(s * R.wanderFreq, 41.3, this.seed ^ 0x7ab1, 3) * Math.PI;
 
-      let best = null;
-      for (let c = 0; c < R.candidates; c++) {
-        const dTheta = (c / (R.candidates - 1) * 2 - 1) * R.maxTurnPerStep;
-        const nth = th + dTheta;
-        const nx = x + Math.cos(nth) * step;
-        const nz = z + Math.sin(nth) * step;
+      const sm = this._sideTerm(x, z, th, -R.maxTurnPerStep);
+      const s0 = this._sideTerm(x, z, th, 0);
+      const sp = this._sideTerm(x, z, th, R.maxTurnPerStep);
+      const sa = 0.5 * (sp - sm), sb = 0.5 * (sp + sm) - s0;
 
-        const h = hf.natural(nx, nz);
+      let best = null;
+      for (let c = 0; c < C; c++) {
+        const t = (c - mid) / mid;
+        const dTheta = t * R.maxTurnPerStep;
+        const nth = th + dTheta;
+        const cx = Math.cos(nth), cz = Math.sin(nth);
+        const nx = x + cx * step;
+        const nz = z + cz * step;
+
+        const riv = hf.full(nx, nz, fo);
+        const h = riv.natural;
         const grade = (h - hCur) / step;
 
-        const riv = hf.river(nx, nz);
-        const rel = riv.base - probe(nx, nz);
-
         // running *along* a channel is bad; crossing it squarely is fine
-        let along = 0;
-        if (riv.dist < T.valleyHalfWidth * 0.55) {
-          const g = Math.hypot(riv.gx, riv.gz) || 1e-9;
-          const tx = -riv.gz / g, tz = riv.gx / g;        // channel tangent
-          const par = Math.abs(Math.cos(nth) * tx + Math.sin(nth) * tz);
-          along = smoothstep(T.valleyHalfWidth * 0.62, 0, riv.dist) * (0.15 + Math.pow(par, 1.6) * 4.2);
-        }
+        const along = riverAlong(riv, cx, cz);
 
+        // Contours close on themselves: a walk rewarded for holding a hillside
+        // would circle a hill or double back along the far side of its valley.
+        // A barrier beyond `headingSlack` off the drifting bearing forbids it.
         const hd = angWrap(nth - desired);
+        const stray = Math.max(0, Math.abs(hd) - R.headingSlack);
         const cost =
           R.gradeWeight * grade * grade +
           R.turnWeight * dTheta * dTheta +
           R.turnChangeWeight * (dTheta - prevD) * (dTheta - prevD) +
-          R.altitudeWeight * Math.max(0, rel) +
           R.riverAlongWeight * along +
-          R.headingWeight * hd * hd;
+          R.headingWeight * hd * hd +
+          R.headingBarrier * stray * stray +
+          s0 + sa * t + sb * t * t;
 
         if (!best || cost < best.cost) best = { cost, dTheta, nth, nx, nz, h };
       }
@@ -99,6 +105,34 @@ export class Route {
       pts.push({ x, z });
     }
     return pts;
+  }
+
+  /**
+   * Landform cost of the candidate turning dTheta from (x, z, th): a road on
+   * the valley floor sees a bank on both sides; a road on the hillside sees one
+   * bank and one slope falling away in plain view, and a road heading out over
+   * lower ground sees the land ahead.  Probed `sideAhead` metres along the
+   * candidate's constant-turn arc, where the fan has spread wide enough for the
+   * term to steer a one-step greedy walk.  The river-alignment cost is repeated
+   * there so a crossing is squared up before the walk reaches the channel.
+   */
+  _sideTerm(x, z, th, dTheta) {
+    const hf = this.hf;
+    const A = R.step + R.sideAhead, k = A / R.step;
+    const mh = th + dTheta * k * 0.5, eh = th + dTheta * k;
+    const px = x + Math.cos(mh) * A, pz = z + Math.sin(mh) * A;
+    const ex = Math.cos(eh), ez = Math.sin(eh);
+    const riv = hf.full(px, pz, this._probe);
+    const h = riv.natural, dn = R.sideNear, df = R.sideFar, vn = R.viewNear, vf = R.viewFar;
+    const eye = R.sideEye, cap = R.openMax;
+    const hl1 = hf.natural(px - ez * dn, pz + ex * dn) - h, hl2 = hf.natural(px - ez * df, pz + ex * df) - h;
+    const hr1 = hf.natural(px + ez * dn, pz - ex * dn) - h, hr2 = hf.natural(px + ez * df, pz - ex * df) - h;
+    const hv1 = hf.natural(px + ex * vn, pz + ez * vn) - h, hv2 = hf.natural(px + ex * vf, pz + ez * vf) - h;
+    const trough = Math.max(0, Math.min(hl1, hr1)) + Math.max(0, Math.min(hl2, hr2));
+    return R.troughWeight * Math.min(trough, cap)
+      - R.openWeight * Math.max(openSide(hl1, hl2, dn, df, eye, cap), openSide(hr1, hr2, dn, df, eye, cap))
+      - R.viewWeight * openSide(hv1, hv2, vn, vf, eye, R.viewMax)
+      + R.riverAlongWeight * R.riverAheadScale * riverAlong(riv, ex, ez);
   }
 
   _smoothPlan(pts) {
@@ -142,8 +176,8 @@ export class Route {
     const raw = new Float64Array(n);
     for (let i = 0; i < n; i++) {
       const p = res[i];
-      const g = hf.ground(p.x, p.z);
-      const r = hf.river(p.x, p.z);
+      const r = hf.full(p.x, p.z);
+      const g = r.ground;
       // never chase the road down into the riverbed — it wants the valley floor
       raw[i] = r.dist < r.channelHalf * 2.2 ? Math.max(g, r.waterY + 1.0) : g;
       p._raw = raw[i];
@@ -155,7 +189,7 @@ export class Route {
 
     // keep the road within a plausible cut/fill envelope of the natural ground
     for (let i = 0; i < n; i++) {
-      y[i] = softClamp(y[i], raw[i] - 8.5, raw[i] + 10.5, 2.5);
+      y[i] = softClamp(y[i], raw[i] - R.profileCut, raw[i] + R.profileFill, 2.5);
     }
     y = movingAverage(y, 13);
     limitGrade(y, R.resample, R.maxGrade);
@@ -236,6 +270,10 @@ export class Route {
     for (let i = 0; i < n; i++) if (env[i] > sm[i]) sm[i] = env[i];
     sm = movingAverage(sm, 5);
     for (let i = 0; i < n; i++) if (env[i] > sm[i]) sm[i] = env[i];
+    // Re-imposing the deck envelope can leave a ramp steeper than maxGrade where
+    // the deck stands well above the approach: lift the approaches into fill
+    // instead (never lowers, so the deck clearance is kept).
+    raiseToGrade(sm, ds, R.maxGrade);
 
     for (let i = 0; i < n; i++) res[i].y = sm[i];
 
@@ -390,6 +428,30 @@ function movingAverage(src, half) {
   return out;
 }
 
+/**
+ * Cost of heading (cx, cz) at a heightfield sample `riv` (Heightfield.full):
+ * zero away from a channel, small when crossing it squarely, large along it.
+ */
+function riverAlong(riv, cx, cz) {
+  if (riv.dist >= T.valleyHalfWidth * 0.55) return 0;
+  const g = Math.hypot(riv.gx, riv.gz) || 1e-9;
+  const tx = -riv.gz / g, tz = riv.gx / g;        // channel tangent
+  const par = Math.abs(cx * tx + cz * tz);
+  return smoothstep(T.valleyHalfWidth * 0.62, 0, riv.dist) * (0.15 + Math.pow(par, 1.6) * 4.2);
+}
+
+/**
+ * How far a lateral slope falls away *in view* of a driver: the drop at the far
+ * probe, faded out when a bench between the probes hides it (the far sample sits
+ * below the sight line grazing the near one).
+ */
+function openSide(h1, h2, d1, d2, eye, cap) {
+  const drop = -h2;
+  if (drop <= 0) return 0;
+  const shown = (h2 - eye) / d2 - (h1 - eye) / d1;   // >= 0: far slope visible
+  return Math.min(drop, cap) * smoothstep(-0.03, 0.01, shown);
+}
+
 function softClamp(v, lo, hi, k) {
   // smooth min/max so the envelope does not crease
   const smin = (a, b) => { const h = clamp(0.5 + 0.5 * (b - a) / k, 0, 1); return lerp(b, a, h) - k * h * (1 - h); };
@@ -409,4 +471,11 @@ function limitGrade(y, ds, maxGrade) {
       if (d > m) y[i] = y[i + 1] + m; else if (d < -m) y[i] = y[i + 1] - m;
     }
   }
+}
+
+/** Smallest profile >= y whose every step is within maxGrade (one pass each way). */
+function raiseToGrade(y, ds, maxGrade) {
+  const n = y.length, m = maxGrade * ds;
+  for (let i = 1; i < n; i++) if (y[i] < y[i - 1] - m) y[i] = y[i - 1] - m;
+  for (let i = n - 2; i >= 0; i--) if (y[i] < y[i + 1] - m) y[i] = y[i + 1] - m;
 }

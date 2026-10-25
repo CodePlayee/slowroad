@@ -1,0 +1,185 @@
+{
+ "seed": 21941,
+ "capture": "/tmp/sr-run/r2",
+ "key": [
+  {
+   "id": "Q01",
+   "shot": "chase_night",
+   "reference": "sr_20.jpg",
+   "masks": [],
+   "A": {
+    "role": "build",
+    "file": "/tmp/sr-run/r2/chase_night.png",
+    "sha256": "b1475506c21f86e74350f3f79e3daa5721651bc048b63b7affaa0f95dfa2f3e5"
+   },
+   "B": {
+    "role": "reference",
+    "file": "/home/yase/slowroad/refs/slowroads/official/sr_20.jpg",
+    "sha256": "5d45b0ce1d9dc909fafc80eea50f62bb8e87f225bf49a2cbd2cd0d11c8353785"
+   }
+  },
+  {
+   "id": "Q02",
+   "shot": "cockpit_overcast",
+   "reference": "sr_11.jpg",
+   "masks": [],
+   "A": {
+    "role": "reference",
+    "file": "/home/yase/slowroad/refs/slowroads/official/sr_11.jpg",
+    "sha256": "59e56d195929a04c7457a1fc25ae5139cf3fb5894397d29d3c16b0b6302bc70a"
+   },
+   "B": {
+    "role": "build",
+    "file": "/tmp/sr-run/r2/cockpit_overcast.png",
+    "sha256": "111f22a08773f20579d4dba21b0bb0c831e2c34941930b172e901b0b213e0ca5"
+   }
+  },
+  {
+   "id": "Q03",
+   "shot": "chase_dawn",
+   "reference": "sr_13.jpg",
+   "masks": [],
+   "A": {
+    "role": "build",
+    "file": "/tmp/sr-run/r2/chase_dawn.png",
+    "sha256": "d565a65acca5e656dd2f8027ca046b31686fe9d9e07186c2c26b0878fb6c4b21"
+   },
+   "B": {
+    "role": "reference",
+    "file": "/home/yase/slowroad/refs/slowroads/official/sr_13.jpg",
+    "sha256": "d85bb7d7ec956d6e89054de6b068aa51784cd6af1295a94a7de66365049a2271"
+   }
+  },
+  {
+   "id": "Q04",
+   "shot": "chase_summer_noon",
+   "reference": "sr_01.jpg",
+   "masks": [],
+   "A": {
+    "role": "build",
+    "file": "/tmp/sr-run/r2/chase_summer_noon.png",
+    "sha256": "91591313207dcb73b3225099d6f2eab7db127e41955729649794bed9872a352e"
+   },
+   "B": {
+    "role": "reference",
+    "file": "/home/yase/slowroad/refs/slowroads/official/sr_01.jpg",
+    "sha256": "2618d953aacb265079bed837a62535a7943f6f1b5ee899ad243ef558e7e085c3"
+   }
+  },
+  {
+   "id": "Q05",
+   "shot": "forest_dense",
+   "reference": "sr_16.jpg",
+   "masks": [],
+   "A": {
+    "role": "reference",
+    "file": "/home/yase/slowroad/refs/slowroads/official/sr_16.jpg",
+    "sha256": "c06597b08e490cff743f93e178c1631d1a8e7206e9b6f74f02746c70798bb6d6"
+   },
+   "B": {
+    "role": "build",
+    "file": "/tmp/sr-run/r2/forest_dense.png",
+    "sha256": "c0313712d5c34c34a8a6990a05e5e6058f78c23c5c491852b15fbf8e9e6e88e6"
+   }
+  },
+  {
+   "id": "Q06",
+   "shot": "cockpit_noon",
+   "reference": "sr_11.jpg",
+   "masks": [],
+   "A": {
+    "role": "reference",
+    "file": "/home/yase/slowroad/refs/slowroads/official/sr_11.jpg",
+    "sha256": "59e56d195929a04c7457a1fc25ae5139cf3fb5894397d29d3c16b0b6302bc70a"
+   },
+   "B": {
+    "role": "build",
+    "file": "/tmp/sr-run/r2/cockpit_noon.png",
+    "sha256": "5696d7a16841b4567ebf20f21b9a6bb27aa0db010284b1d4d4982337af2fd420"
+   }
+  },
+  {
+   "id": "Q07",
+   "shot": "season_winter",
+   "reference": "sr_13.jpg",
+   "masks": [],
+   "A": {
+    "role": "reference",
+    "file": "/home/yase/slowroad/refs/slowroads/official/sr_13.jpg",
+    "sha256": "d85bb7d7ec956d6e89054de6b068aa51784cd6af1295a94a7de66365049a2271"
+   },
+   "B": {
+    "role": "build",
+    "file": "/tmp/sr-run/r2/season_winter.png",
+    "sha256": "4e9f626a43cf201ea65d358deda26affdb6e67685cd9282fed8f50fd112a9e84"
+   }
+  },
+  {
+   "id": "Q08",
+   "shot": "vista_wide",
+   "reference": "sr_03.jpg",
+   "masks": [],
+   "A": {
+    "role": "build",
+    "file": "/tmp/sr-run/r2/vista_wide.png",
+    "sha256": "80ac8da2c7d6a1acc1996e72bea46fcead9d8a475290930fa499d3c3ae35bbbc"
+   },
+   "B": {
+    "role": "reference",
+    "file": "/home/yase/slowroad/refs/slowroads/official/sr_03.jpg",
+    "sha256": "a7c8e7d785b28e4f44cfa5c1955427d8f32a36f22c7b2bcafff828601cd9fbb8"
+   }
+  },
+  {
+   "id": "Q09",
+   "shot": "season_autumn",
+   "reference": "sr_22.jpg",
+   "masks": [],
+   "A": {
+    "role": "build",
+    "file": "/tmp/sr-run/r2/season_autumn.png",
+    "sha256": "e4140f3e58b67a55d000dbba11b8277b07ab9d8c90d4c3e6edd9caa879c4080c"
+   },
+   "B": {
+    "role": "reference",
+    "file": "/home/yase/slowroad/refs/slowroads/official/sr_22.jpg",
+    "sha256": "38564cf2f505a60310c49d2e8c288ee55a37f182bde7f57c97567075e6eb2853"
+   }
+  },
+  {
+   "id": "Q10",
+   "shot": "chase_golden",
+   "reference": "sr_04.jpg",
+   "masks": [
+    [
+     300,
+     870,
+     230,
+     150
+    ],
+    [
+     860,
+     850,
+     200,
+     180
+    ],
+    [
+     1440,
+     870,
+     210,
+     110
+    ]
+   ],
+   "A": {
+    "role": "reference",
+    "file": "/home/yase/slowroad/refs/slowroads/official/sr_04.jpg",
+    "sha256": "0df26a4567121653085c453dcc4830cdb9893218caa39699a1d68e2ad43484a9"
+   },
+   "B": {
+    "role": "build",
+    "file": "/tmp/sr-run/r2/chase_golden.png",
+    "sha256": "267808cb15a13f530076ca493eb6c472ecbef8707164de8dcd3826b0d97569df"
+   }
+  }
+ ]
+}

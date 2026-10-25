@@ -206,7 +206,9 @@ test('contact shader adds exactly one sample, protects excluded surfaces, and co
   assert.match(shader.fragmentShader, /plantContactUv = \(uv - uPlantContactOrigin\) \/ uPlantContactSpan/);
   assert.match(shader.fragmentShader, /plantContactBounds \* woodlandSurface/);
   const surface = shader.fragmentShader.match(/float woodlandSurface = [\s\S]*?;/)[0];
-  assert.match(surface, /shore/); assert.match(surface, /rk/); assert.match(surface, /vRoadDist/);
+  // The road exclusion now arrives through roadTurf (bare dirt rim), which is driven by vRoadDist.
+  assert.match(surface, /shore/); assert.match(surface, /rk/); assert.match(surface, /roadTurf/);
+  assert.match(shader.fragmentShader.match(/float roadEdge = [\s\S]*?;/)[0], /vRoadDist/);
   assert.match(shader.fragmentShader, /rootSnowBank \* 0\.012 - rootSnowPocket \* 0\.004\) \* winterAmount/);
   assert.match(shader.fragmentShader, /reflectedLight\.directDiffuse \*= 1\.0 - plantContact \* mix\(0\.22, 0\.10, winterAmount\)/);
   assert.match(shader.fragmentShader, /reflectedLight\.indirectDiffuse \*= 1\.0 - plantContact \* mix\(0\.30, 0\.14, winterAmount\)/);

@@ -61,21 +61,27 @@ export class WaterSystem {
       depthWrite: false,
     });
     this.material.name = 'water';
-    // grazing-angle sky reflection: without it a river reads as flat pale plastic.
-    // vFogWorldPos comes from our global fog chunk, so no extra varying is needed.
+    // Sky reflection: without it a river reads as flat pale plastic. vFogWorldPos comes
+    // from our global fog chunk; vNormal is view space, so it is brought to world space
+    // before meeting the world view ray. The floor keeps a steep look-down mirroring
+    // some sky instead of showing only the dark body colour; the colour is the scene
+    // sky, so it follows the time of day.
     this.material.onBeforeCompile = (shader) => {
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <fog_fragment>',
         /* glsl */`
+#ifdef USE_FOG
   {
     vec3 wv = normalize( cameraPosition - vFogWorldPos );
-    vec3 wn = normalize( vNormal );
+    vec3 wn = inverseTransformDirection( normalize( vNormal ), viewMatrix );
     if ( wn.y < 0.0 ) wn = -wn;
     float fres = pow( 1.0 - clamp( dot( wn, wv ), 0.0, 1.0 ), 4.0 );
     fres = min( fres, 0.82 );
-    gl_FragColor.rgb = mix( gl_FragColor.rgb, uFogColorHigh * 0.86 + uFogColorLow * 0.14, fres * 0.72 );
-    gl_FragColor.a = mix( gl_FragColor.a, 1.0, fres * 0.9 );
+    float refl = mix( ${W.reflectFloor.toFixed(3)}, ${W.reflectMax.toFixed(3)}, fres );
+    gl_FragColor.rgb = mix( gl_FragColor.rgb, uFogColorHigh * 0.86 + uFogColorLow * 0.14, refl );
+    gl_FragColor.a = mix( gl_FragColor.a, 1.0, max( fres * 0.9, refl ) );
   }
+#endif
 #include <fog_fragment>`
       );
     };

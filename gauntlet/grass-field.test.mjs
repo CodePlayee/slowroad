@@ -15,6 +15,7 @@ registerHooks({ load(url, context, next) {
 const { GrassField, createGrassGeometry, grassLodWeights, grassSeedPresence } = await import('../src/vegetation/grassField.js');
 const { GRASS_COVERAGE, GRASS_SNOW, GRASS_COVERAGE_GLSL, grassRoadCoverage, grassViewCoverage, grassWinterExposure } = await import('../src/vegetation/grassCoverage.js');
 const { InstanceCuller } = await import('../src/vegetation/instanceCulling.js');
+const { MEADOW_FIELD_GLSL } = await import('../src/terrain/meadowField.js');
 
 const record = (id, x = 0, z = -20) => Object.freeze({
   id, x, y: 3, z, yaw: 0.6, height: 0.7, width: 0.9,
@@ -1059,6 +1060,8 @@ test('grass shader uses opaque ribbons, width-only continuous detail and root-an
   assert.doesNotMatch(shapeLength[1], /Time|camera|grassDistance|grassPixels/);
   assert.match(shader.vertexShader, /smoothstep\(4\.0, 12\.0, grassPixels\)/);
   assert.ok(shader.vertexShader.includes(GRASS_COVERAGE_GLSL), 'CPU and shader must share the same road and view thresholds');
+  assert.ok(shader.vertexShader.includes(MEADOW_FIELD_GLSL), 'blades and turf must sample the same meadow patch/lodging field');
+  assert.match(shader.vertexShader, /meadowSward\(grassFieldRoot\.xz, iGrassStyle\.x, 1\.0\)/);
   assert.match(shader.vertexShader, /attribute float iGrassRoad/);
   assert.match(shader.vertexShader, /farWidth = grassViewCoverage\(grassDistance\) \* smoothstep\(1\.1, 3\.0, grassPixels\) \* iGrassRoad/);
   assert.match(shader.vertexShader, /farWidth \*= mix\(1\.0, grassWinterExposure\(iGrassStyle\.z\), uGrassSnow\)/);
