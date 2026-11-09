@@ -153,6 +153,9 @@ export class Atmosphere {
 
     const dayness = clamp((Math.sin(el) + 0.085) / 0.26, 0, 1);
     const nightness = 1 - dayness;
+    // Only the seasonal addition needs compensation: explicit overcast/storm
+    // already carry matching cloud and light settings. Leave night lighting alone.
+    const seasonalCloud = (greyLevel - W.grey) * dayness;
     const moonUp = clamp((this.moonDir.y + 0.04) / 0.28, 0, 1);
     // 1 near the horizon in either direction — drives the mist and the warm horizon band
     const twilight = clamp(1 - Math.abs(el) / 0.24, 0, 1);
@@ -217,8 +220,14 @@ export class Atmosphere {
 
     // ---------------------------------------------------------------- clouds
     const cl = W.cloud;
-    u.uCloud.value.set(cl[0], cl[1], cl[2], cl[3]);
-    u.uCloudDrift.value.w = W.soft;
+    const winterDeck = WEATHER.overcast.cloud;
+    u.uCloud.value.set(
+      lerp(cl[0], winterDeck[0], seasonalCloud),
+      lerp(cl[1], winterDeck[1], seasonalCloud),
+      lerp(cl[2], winterDeck[2], seasonalCloud),
+      lerp(cl[3], winterDeck[3], seasonalCloud),
+    );
+    u.uCloudDrift.value.w = lerp(W.soft, WEATHER.overcast.soft, seasonalCloud);
     // Sunlit tops take the sun's colour, whitened. AT NIGHT THE SUN MUST NOT LIGHT THEM:
     // a fixed 0.55 floor on the day gain left the deck ~20x brighter than a 0.011 night
     // sky, so the night frames had salmon-lit clouds and a V0.40 "sky". Night clouds are
@@ -290,9 +299,12 @@ export class Atmosphere {
     // warm-hour cue without changing the authored sky ramps.
     const lowSunContrast = smoothstep(0.08, 0.42, Math.max(Math.sin(el), 0));
     const sunI = ATMO.sunPeak * dayness * W.sun * lerp(1.06, 1.0, lowSunContrast);
+    // Winter's grey sky scatters part of the key into diffuse skylight instead
+    // of leaving clear-weather illumination beneath an overcast-looking dome.
+    const seasonalDiffuse = sunI * seasonalCloud * 0.45;
     if (dayness > 0.02) {
       this.sun.color.copy(sunColor).lerp(WHITE, 0.12);
-      this.sun.intensity = sunI;
+      this.sun.intensity = sunI - seasonalDiffuse;
     } else {
       this.sun.color.setRGB(0.60, 0.70, 1.0);
       this.sun.intensity = ATMO.moonPeak * moonUp * W.sun;
@@ -316,9 +328,25 @@ export class Atmosphere {
     const nightFill = 1 + nightness * 0.85;
     const dayFill = (0.44 + 0.56 * lowSunContrast) * Math.pow(dayness, 0.75);
     this.hemi.intensity = ATMO.hemiPeak * (0.22 + 0.78 * dayFill) * overcastFill * nightFill;
+    // Add only a small, moon-upward contribution to the hemisphere: it improves
+    // terrain and foliage readability without lifting the ambient floor or the sky.
+    // W.sun keeps clouded nights subdued, while nightness leaves every daytime
+    // and seasonal daylight result unchanged.
+    const moonHemisphereFill = 0.04 * nightness * moonUp * W.sun;
+    this.hemi.intensity += moonHemisphereFill;
     this.ambient.color.copy(this.hemi.color);
     const ambientFill = 0.52 + 0.48 * lowSunContrast;
     this.ambient.intensity = ATMO.ambientPeak * (0.30 + 0.70 * dayness) * ambientFill * overcastFill * nightFill;
+    // Redistribute, rather than add exposure: upward-facing ground receives the
+    // lost key irradiance as skylight, softening snow-bank directional contrast.
+    this.hemi.intensity += seasonalDiffuse * Math.max(this.sunDir.y, 0);
+    // Clear daylight needs less omnidirectional fill inside crowns and beneath
+    // grass blades. Moving it to the hemisphere preserves upward-facing brightness
+    // (both lights share a colour), but lets side/down-facing surfaces stay darker.
+    // The transfer vanishes at night and is restrained under explicit cloud cover.
+    const directionalFill = this.ambient.intensity * 0.25 * dayness * (1 - greyLevel);
+    this.ambient.intensity -= directionalFill;
+    this.hemi.intensity += directionalFill;
 
     // ---------------------------------------------------------------- grade
     gradeUniforms.uGradeLook.value.set(ATMO.gradeSlope, ATMO.gradePower, ATMO.gradeSat, 0);

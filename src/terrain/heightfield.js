@@ -133,7 +133,12 @@ export class Heightfield {
     const nearRiver = dist < 420 ? smoothstep(420, 40, dist) : 0;
     const altWet = smoothstep(320, 60, base);
     const moisture = clamp(mn * 0.62 + nearRiver * 0.3 + altWet * 0.22, 0, 1);
-    const rockiness = clamp(0.5 + 0.5 * fbm(x * 0.0009, z * 0.0009, this.s.rock, 3), 0, 1);
+    // Broad lithology and smaller outcrops vary independently of the road's
+    // constant cut angle. These are material fields only: routing, water and
+    // all analytic elevations retain exactly the same landform.
+    const lithology = fbm(x * 0.0009, z * 0.0009, this.s.rock, 3);
+    const outcrop = gnoise((x + z * 0.35) * 0.008, (z - x * 0.35) * 0.008, this.s.rock ^ 0x319f);
+    const rockiness = clamp(0.5 + 0.42 * lithology + 0.24 * outcrop, 0, 1);
 
     out.relief = r; out.base = base; out.natural = nat; out.ground = ground;
     out.dist = dist; out.half = half; out.channelHalf = channelHalf; out.waterY = waterY;

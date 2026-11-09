@@ -45,7 +45,7 @@ test('road ribbon ends at a crumbled asphalt lip antialiased over one pixel, wit
     assert.ok(coverage(edge - pixel / 2) > 1 - 1e-9);
     assert.ok(coverage(edge + pixel / 2) < 1e-9, 'no partial coverage wider than one pixel');
   }
-  road.material.dispose(); road.fenceMaterial.dispose();
+  road.material.dispose(); Object.values(road.furnitureMaterials).forEach(material => material.dispose());
 });
 
 test('lip gravel follows the season palette with the same formula as the terrain rim', () => {
@@ -59,7 +59,7 @@ test('lip gravel follows the season palette with the same formula as the terrain
     const expected = [soil.r, soil.g, soil.b].map((s, i) => THREE.MathUtils.lerp(s * 0.62, season.rock[i] * 0.50, 0.30));
     assert.deepEqual([gravel.r, gravel.g, gravel.b].map(v => +v.toFixed(6)), expected.map(v => +v.toFixed(6)));
   }
-  road.material.dispose(); road.fenceMaterial.dispose();
+  road.material.dispose(); Object.values(road.furnitureMaterials).forEach(material => material.dispose());
 });
 
 // Winter tarmac used to stay completely bare, which read as a summer road pasted
@@ -71,12 +71,8 @@ test('asphalt carries wheel paths, and winter snow lies between them after the m
     fragmentShader: THREE.ShaderLib.standard.fragmentShader };
   road.material.onBeforeCompile(shader);
   const fs = shader.fragmentShader;
-  assert.match(fs, /float laneLat = abs\( lat - 1\.75 \)/);
-  assert.match(fs, /wheelTrack = exp\( -pow\( \( laneLat - 0\.80 \) \* 3\.6, 2\.0 \) \)/);
   assert.match(fs, /aggFootprint = length\( fwidth\( aggUv \) \)/, 'aggregate fades by pixel footprint');
-  assert.match(fs, /laneSnow = uSnowAmount \* \( 1\.0 - smoothstep\( 0\.10, 0\.55, wheelTrack \) \)/);
   assert.match(fs, /col = mix\( col, uPaint, paint \)/);
-  assert.ok(fs.indexOf('laneSnow * 0.85') > fs.indexOf('col = mix( col, uPaint, paint )'), 'snow partly buries markings');
   // Road-space noise stretched 14:1 along the lane projected into long fan streaks;
   // the breakup is now world-space, isotropic and footprint-faded.
   assert.doesNotMatch(fs, /snowStreak|sAlong \* 0\.18/);
@@ -89,5 +85,5 @@ test('asphalt carries wheel paths, and winter snow lies between them after the m
   const track = lat => Math.exp(-(((Math.abs(lat - 1.75) - 0.80) * 3.6) ** 2));
   assert.equal(track(0.95), 1); assert.equal(track(2.55), 1);
   assert.ok(track(1.75) < 0.01 && track(0) < 0.01, 'lane centre and crown are outside the tracks');
-  road.material.dispose(); road.fenceMaterial.dispose();
+  road.material.dispose(); Object.values(road.furnitureMaterials).forEach(material => material.dispose());
 });

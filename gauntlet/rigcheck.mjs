@@ -178,7 +178,7 @@ const out = await page.evaluate(async () => {
     const veg = window.__app.veg;
     let groups = 0, records = 0, instances = 0, valid = true;
     for (const entry of veg.tiles.values()) {
-      if (entry.job.kind === 'grass') continue;
+      if (entry.job.kind !== 'tree' && entry.job.kind !== 'shrub') continue;
       records += entry.records.length;
       const templates = new Map();
       for (const mesh of entry.meshes) {
@@ -216,7 +216,7 @@ const out = await page.evaluate(async () => {
 
   if (window.__app.veg.generation === 2) {
     await check('V2 assets and unique population', () => {
-      const veg = window.__app.veg, ids = [], counts = { grass: 0, shrub: 0, tree: 0 };
+      const veg = window.__app.veg, ids = [], counts = { grass: 0, pasture: 0, shrub: 0, tree: 0 };
       let valid = true;
       for (const [key, entry] of veg.tiles) {
         valid &&= key === entry.job.key && key.startsWith(`veg:${veg.version}:`);
@@ -227,7 +227,8 @@ const out = await page.evaluate(async () => {
       }
       return { ready: veg.assetReady && !veg.assetError && !!veg.forest.assets && !!veg.flowers.geometry,
         unique: new Set(ids).size === ids.length, counts, valid };
-    }, value => value.ready && value.unique && value.valid && Object.values(value.counts).every(count => count > 0) ? null : JSON.stringify(value));
+    }, value => value.ready && value.unique && value.valid && ['grass', 'shrub', 'tree'].every(kind => value.counts[kind] > 0)
+      && Object.values(value.counts).every(count => Number.isSafeInteger(count) && count >= 0) ? null : JSON.stringify(value));
 
     await check('V2 same-source near/far trees', forestPopulationContract,
       value => value.valid && value.groups > 0 && value.records > 0 && value.records === value.instances ? null : JSON.stringify(value));

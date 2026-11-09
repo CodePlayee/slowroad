@@ -124,17 +124,69 @@ r4 盲评之后合入了两批改动，还没有完整复拍和盲评：
    - water_river 改为 2.30；
    - vista_ridges（seed 31）改为 4.95。
 3. **路线对参数非常敏感。** seed 58 出现一座 5 跨 116 m 的桥；seed 7 最深挖方从 24.8 m 增加到 45.6 m。路线构建时间约 550–900 ms。
-4. **已知会失败的测试。** `surface-sampler` 缺少生成数据，见上文。
+4. ~~已知会失败的测试~~：2026-11-09 起全量测试通过，见下文。
+
+### 第一阶段盲评迭代 r6–r17（2026-11-06/07）：整体退步
+
+r6–r17 每轮 10 个固定镜头、3 位全新盲评，按 0–5 绝对分与官方截图比较。逐轮均分（我方/官方）：r6 2.94/3.77 … r14 3.36/3.95，r15 3.48/3.99，r16 2.96/3.84，r17 2.91/3.81；30/30 判定始终 `material_gap: true`。
+
+事后审计发现这套绝对分不可靠，结论需要修正：
+
+- **评审噪声大于改动效果。** 同一张截图在不同轮次得分不同：cockpit_overcast 在 r13/r14 分别为 2.74/3.59，cockpit_noon 在 r15/r16 分别为 3.59/2.59。r14、r15 的“高分”来自评审组差异，并非画面变好。
+- **r17 比 r5（迭代前）更差。** 强制二选一盲评中，r5 胜 22/30。r17 丢失了山坡上连片的树林，cockpit_noon 左侧山坡出现大块无纹理的灰带；只有 chase_summer_noon 的开阔远景更好（3/3）。
+- **轮次不规范。** r12、r16 的代码在上一轮盲评结果出来前就已落盘；r17 的源码 hash 只覆盖两个文件。
+
+### 第二阶段 r18–r25（2026-11-08/09）：强制二选一把关
+
+方法：
+
+- **冻结快照拍图**：`gauntlet/scene-round.sh <round> <上一轮目录>` 先把当轮源码打成 `src.tar.gz` 并记录 hash，再构建独立的 `dist/`，经 `vite preview` 拍 10 个镜头。拍图期间改源码不会混入。
+- **进展判定**：3 位全新评审在 A/B 之间二选一，官方图作为目标 R（`gauntlet/PROGRESS_RUBRIC.md`），只评有变化的镜头。接受需要 ≥ 20/30 票；≤ 14 票回退源码；15–19 票视为无法判定，需要拆分改动。
+- **校准**：每轮场景包混入冻结的 r17 截图（`gauntlet/rounds/calibration`），用来监测评审组漂移。r18–r24 期间 chase_summer_noon 的校准分保持在 2.81–2.96。
+- **留出镜头**：`gauntlet/shots.json` 新增 `holdout_a…f`（其他 seed/km），实现者调参时不看，用 `gauntlet/holdout-round.sh` 拍摄。
+
+| 轮次 | 改动 | 二选一（新/旧） | 决定 |
+|---|---|---:|---|
+| r18 | 恢复山坡树林；土方顺接自然地面；去掉灰色陡坎 | 21 / 9 | 接受 |
+| r19 | 路肩、高矮混合的干/绿草丛、野花、路侧灌木与蕨类 | 24 / 6 | 接受 |
+| r20 | 草丛过渡变缓、缩短草带、地形坡面着色 | 10 / 20 | 回退 |
+| r21 | 以相机为中心的远处草地层（`pasture.js`）；修正夜间草地发亮 | 26 / 4 | 接受 |
+| r22 | 冬季路面与雪堤 + 森林重写 | 16 / 14 | 拆分：保留冬季（3/3），回退森林 |
+| r23 | S 形弯道路线 | 9 / 21 | 回退（远景、湖面、山谷纵深丢失） |
+| r24 | 路侧植物层（`verge.js`、`tussock.js`）；分段路侧设施：木栏 / 下坡与桥头波形护栏 / 干砌石墙（`roadside.js`、`furniture.js`）；近路不再长高大针叶树；冬季埋没牧草 | 29 / 1 | 接受 |
+| r25 | 第二版路线方案 | 未判定 | 已拍图，盲评中止；路线保持 r24 版本 |
+
+与官方截图的场景评分仍是 **0/30 胜**（r24：我方 3.10，官方 4.09），**未达到官方效果**。r24 盲评指出的剩余差距：
+
+1. **地形与构图**：缺少层层叠叠的山丘、田地与森林相间的地块，以及更有纵深的远景；路线仍偏直。
+2. **整洁度**：草丛间距过于均匀、成行；灌木偏暗且成斑块；石墙纹理重复；护栏看起来像一条细亮线。
+3. **近景草**：密度和体积感仍不及官方。
+
+### 最终代码 = r24 + 运行时修复（未经盲评）
+
+r24 之后为修复审查发现的运行时缺陷做了以下改动，只做过构建、全量测试和冒烟截图，没有经过盲评：
+
+- 花朵的 CPU 剔除距离与 shader 淡出距离统一使用同一个范围，避免远处花朵突然消失。
+- 冬季被埋没的蕨类和路侧植物同时从地面接触贴图中移除；季节切换时重建贴图。
+- 基础灌木避开石墙段，与 `verge.js` 的规则一致。
+- `ground-contact-audit.mjs`、`rigcheck.mjs` 统计新增的 `pasture` 类别。
+- 删除 `roadmesh.fenceMaterial` 这个仅供测试使用的别名，改用 `furnitureMaterials`。
+
+测试：多处断言源码文本、默认值或 golden hash 的测试已删除或改成行为检查。桥梁测试改为从生成的路线中查找桥，不再写死 km。Node 22 下全量 `gauntlet/*.test.mjs` 共 452 个，全部通过。
+
+已知风险：植物接触记录上限仍为 16 384，所有 seed 的真实上界尚未证明。
+
+证据：每轮的源码快照、hash、截图、盲评 JSON、揭盲 key 和汇总都在 `gauntlet/rounds/`（约 1.8 GB，已加入 git ignore，不提交）。
 
 ### 无 GPU 机器上的截图
 ```sh
 PLAYWRIGHT_BROWSERS_PATH=~/.local/ms-playwright npx playwright install chromium
-npm run dev   # 另开终端
-PLAYWRIGHT_BROWSERS_PATH=~/.local/ms-playwright node gauntlet/cpu-capture.mjs /tmp/round chase_summer_noon chase_golden
-python3 gauntlet/package-scene-blind.py /tmp/round /tmp/round-blind
-# 每位评审只读取 /tmp/round-blind/ 并写出 judge-*.json，然后：
-python3 gauntlet/aggregate-scene-blind.py /tmp/round-blind.private-key.json judge-*.json
+# 一轮完整盲评素材（冻结快照 + 10 个镜头 + 场景包 + 与上一轮的二选一包），需 Node >= 22.15：
+gauntlet/scene-round.sh r26 gauntlet/rounds/r24
+gauntlet/holdout-round.sh r26 r24          # 6 个留出镜头
+# 每位评审只读取自己那份包，写出 judge-*.json，然后：
+python3 gauntlet/aggregate-scene-blind.py gauntlet/rounds/r26/progress.private-key.json judge-*.json
 ```
 
-- 速度：SwiftShader 软件渲染，8 核上每张 45–75 分钟，两路并行拍 10 张约 4 小时。Lavapipe（Vulkan）在 headless 下拿不到 WebGL2。
+- 速度：`cpu-capture.mjs` 在加载阶段跳过重复的主场景绘制，但保留完整 streaming/asset residency，最终仍渲染并读回一张 1920×1080 帧。SwiftShader 实测单张约 101–111 秒，两路并行时约 125–158 秒/张，10 张约 13 分钟；旧的 45–75 分钟估计已过时。Lavapipe（Vulkan）在 headless 下拿不到 WebGL2。
 - 浏览器目录：本机的 `~/.cache/ms-playwright` 曾两次被不明进程清空，所以浏览器装到 `~/.local/ms-playwright`。

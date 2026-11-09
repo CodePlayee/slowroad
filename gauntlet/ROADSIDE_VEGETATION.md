@@ -35,21 +35,38 @@ area than the requested roadside strip.
   identities, results and build continuations.
 - Cull whole off-road grass cells with a conservative circumscribed bound.
   Stream a three-cell grass radius instead of five. Reject candidate roots at
-  or beyond 28 m from the road before expensive slope sampling.
-- Share the CPU/GLSL transition contract in `grassCoverage.js`: full roadside
-  coverage from 6.5-16 m, taper to zero at 28 m; camera-distance fade from 48-76 m.
-  Values are measured from the road centreline, not its paved edge. Root and
-  blade heights never snap during fading. Original blade geometry, wind and
-  conservative 8/13/18-blade draw prefixes remain intact.
+  or beyond 31 m from the road before expensive slope sampling.
+- Share the CPU/GLSL transition contract in `grassCoverage.js`: roots start
+  past the bare dirt/gravel shoulder (4.55-5.4 m; terrain `roadScuffInner/Outer`
+  4.35/5.7 m). The outer edge follows the world-space clump field: dense
+  patches reach 31 m, sparse ones end at 18 m, each over a 10 m fade, so the
+  edge meanders instead of forming a band parallel to the road. Fading tufts
+  thin and shorten into the turf; camera-distance fade from 96-160 m. Values
+  are measured from the road centreline, not its paved edge. Open turf takes
+  the blades' mean chroma so the hand-off shows no colour step.
+- Verge character: ~5 m patches of tall grass (up to ~1 m) near the shoulder,
+  wide splaying clumps, cured straw blades mixed per blade through green tufts
+  (share follows hay patches, dryness and per-tuft variation), one-colour
+  white/yellow wildflower clumps (`bloom`), and ferns/low bushes in the
+  5.6-17 m verge band inside the shared shrub thickets.
 - Keep textured ground continuous underneath. Add a rotated, broadly warped
   0.12/m detail sample alongside fine grass/litter samples; use its value
   with seasonal turf color. Contact shading uses the same road/view weights,
   while texture contribution gradually increases as modeled grass thins out.
   Snow, shore, rock and road-edge material masks remain protected.
-- Add a world-noise-modulated woodland cover floor within 90 m of the road,
-  fading back to the original biome cover at 150 m. This retains small gaps,
-  existing remote forests and all road/water/slope/altitude exclusions without
-  increasing the number of tree candidates or special-casing route kilometres.
+- Roadside stands: a 260 m world-noise field (`roadsideStandLo/Hi` in
+  `vegetation/params.js`) puts the road inside woodland for roughly half its
+  length, with crisp stand ends and an irregular outer edge fading over
+  70-135 m (`roadsideStandReach`); elsewhere the road crosses open pasture.
+  The earlier near-continuous 90 m floor made every stretch a tree corridor;
+  removing it outright left road-side slopes bare. Openings still subtract
+  from the stands one side at a time (~37% of each side, both sides ~5%).
+- Forest masses (`forestCover`): the macro field's edge band is narrow
+  (`forestThreshold` 0.465 ± 0.025) so masses have closed interiors instead
+  of half-density cover everywhere; 200 m grove clearings (0.39-0.45) open
+  about a fifth of a mass to pasture. Stands outside the masses come from the
+  top of the raw grove field, not wherever the clearing mask saturates. Seed 7:
+  ~55% of land carries cover above 0.35; road bands 12-150 m ~0.56.
 - Increase species-specific tree heights to 13-30 m. The seed-7 audit mean is
   19.65 m, up from 13.50 m; 92% of sampled accepted trees are at least 15 m tall.
 - Roadside openings (blind-review gap "symmetric tree walls"): within 150 m of
@@ -67,6 +84,24 @@ area than the requested roadside strip.
   both sides open at most 2%. Mean trees per 100 m (both sides) 130 to 90 on
   seed 7; 89% of its windows keep at least 60. Trees in the 548 tree tiles
   within 600 m of the seed-7 route drop from 157,226 to 141,497.
+- Runtime contract corrections: flower CPU visibility and shader alpha now
+  share `FLOWER_RANGE` (39-56 m), keeping the full fade inside the 56 m draw
+  budget. Worker-safe `SHRUB_VARIANTS` metadata drives both asset burial and
+  terrain root selection: winter hides fern/verge variants 1-4 and excludes
+  their contacts; switching across winter clears pending/active contact data
+  and rebuilds from unchanged population records. Woodland variant 0 remains.
+- Base shrubs and verge plants use the same roadside wall plan with each
+  record's half-width as the exclusion radius. Ground-contact reports include
+  pasture as a separate kind; its surface/blade samples use the grass path,
+  not tree grounding. Road material owners use `furnitureMaterials`; the old
+  test-only `fenceMaterial` alias is removed.
+- Contact input capacity remains 16,384 records for the active/target union.
+  This is a fixed budget, not a proven all-seed bound: each 64 m shrub tile has
+  144 base candidates plus up to 52 × 52 verge candidates before road-band,
+  ecology, wall, water and slope rejection. A raw two-window lattice bound
+  cannot establish safety; the true generated union must be checked without
+  dropping roots or enlarging capacity merely to satisfy a synthetic fixture.
+  These corrections do not themselves constitute new smoke/build evidence.
 
 ## Route Evidence
 

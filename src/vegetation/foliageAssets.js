@@ -2,8 +2,10 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { decodeWoodland } from './woodland.js';
 import { loadUnderstory } from './understory.js';
+import { createTussockSource } from './tussock.js';
 import { coverageTextureFromImage, createCoverageTexture, createNormalTexture, unpremultiplyResolvedPixels } from './coverageMips.js';
 import { TREE_SPECIES, TREE_SPECIES_NAMES, isEvergreenSpecies, loadTreeSpecies } from './treeSpecies.js';
+import { SHRUB_VARIANTS } from './params.js';
 
 const ROOT = '/models/woodland/';
 export const IMPOSTOR = Object.freeze({ views: 8, columns: 4, rows: 2, resolution: 256, padding: 0.035 });
@@ -120,6 +122,7 @@ export async function bakeImpostor(renderer, template, bare = false, normal = fa
     if (bare && part === 'leaf') continue;
     const material = new THREE.MeshBasicMaterial({ map: template.maps[part], side: THREE.DoubleSide,
       color: new THREE.Color().setRGB(...(template.tints?.[part] || [1, 1, 1])),
+      vertexColors: Boolean(geometry.getAttribute('color')),
       alphaTest: part === 'leaf' ? 0.32 : 0, alphaToCoverage: false, toneMapped: false });
     if (normal) material.onBeforeCompile = (shader) => {
       shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vBakeNormal;')
@@ -229,7 +232,27 @@ export async function loadFoliageAssets(renderer) {
         maps: { bark: fern ? null : understory.materials.bark.map, leaf: fern ? null : shrubLeaf },
         ...(fern ? { heightScale: 0.68, tints: { bark: [0.26, 0.20, 0.055], leaf: [0.15, 0.30, 0.055] } } : {}) });
     });
+    // Verge planting forms (verge.js): a flowering shrub and a verge bush on the
+    // woody bush, and a procedural dry tussock. Winter snow buries ferns and the
+    // whole verge planting; only the scattered woodland shrubs keep bare twigs.
+    const woody = templates.get('shrub-0');
+    templates.set('shrub-2', { ...woody, name: 'shrub-2', growthForm: 'flowering', impostorSource: woody });
+    const tussock = createTussockSource();
+    try {
+      const parts = prepareShrubParts(tussock);
+      for (const geometry of Object.values(parts)) resources.add(geometry);
+      templates.set('shrub-3', { name: 'shrub-3', species: 'oak', kind: 'shrub', parts, growthForm: 'tussock',
+        maps: { bark: null, leaf: null }, singleSided: true });
+    } finally { tussock.bark.dispose(); tussock.leaf.dispose(); }
+    templates.set('shrub-4', { ...woody, name: 'shrub-4', impostorSource: woody });
+    for (const variant of SHRUB_VARIANTS) templates.get(variant.key).winterBuried = variant.winterBuried;
     for (const template of templates.values()) {
+      const source = template.impostorSource;
+      if (source) {
+        // Same geometry and maps: share the source's baked atlases.
+        template.impostor = source.impostor; template.bareImpostor = source.bareImpostor;
+        continue;
+      }
       template.impostor = await bakeImpostor(renderer, template);
       resources.add(template.impostor.texture);
       template.impostor.normalTexture = (await bakeImpostor(renderer, template, false, true)).texture;

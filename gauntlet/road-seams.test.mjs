@@ -20,7 +20,7 @@ function roadFixture(world, t) {
   t.after(() => {
     road.rebuildAll();
     road.material.dispose();
-    road.fenceMaterial.dispose();
+    Object.values(road.furnitureMaterials).forEach(material => material.dispose());
   });
   return road;
 }

@@ -243,13 +243,16 @@ test('superseded focus and record builds cannot publish old roots or the wrong o
   const field = fixture(t, { texelsPerStep: 1 }), records = [tree()];
   field.update(records, { x: 0, z: 0 }); finish(field);
   field.update(records, { x: 4, z: 0 }); field.step();
-  field.update([tree(20.5, 0.5)], { x: 20, z: 0 }); field.step();
+  field.update([tree(16.5, 0.5)], { x: 20, z: 0 }); field.step();
   assert.equal(field.data.some(Boolean), false);
   field.update([tree(24.5, 0.5)], { x: 24, z: 0 }); finish(field);
   assert.deepEqual(field.origin.toArray(), [8, -16]);
   assert.equal(field.sampleWorld(0.5, 0.5), 0);
-  assert.equal(field.sampleWorld(20.5, 0.5), 0);
+  assert.equal(field.sampleWorld(16.5, 0.5), 0, 'cancelled root lies beyond the final root contact footprint');
   assert.ok(field.sampleWorld(24.5, 0.5) > 0);
+  const fresh = fixture(t, { texelsPerStep: 1 });
+  fresh.update([tree(24.5, 0.5)], { x: 24, z: 0 }); finish(fresh);
+  assert.deepEqual(field.data, fresh.data, 'superseded work must leave exactly the latest complete raster');
 });
 
 test('record and raster budgets are explicit and oversized global populations are rejected intact', t => {

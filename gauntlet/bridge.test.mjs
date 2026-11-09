@@ -20,13 +20,12 @@ const {
 const L = ROAD.laneWidth;
 const worlds = new Map([7, 12, 31].map(seed => [seed, new World(seed).build()]));
 const all = [...worlds].flatMap(([seed, world]) => world.route.bridges.map(b => ({ seed, world, b, g: buildBridgeGeometry(world, b) })));
-// the 3-span showcase crossing (seed 7, km 14.64): 3 spans over a 44 m river, beside
-// the first open water findWaterKm reports on that route
-const showcase = all.find(x => x.seed === 7 && Math.abs(x.b.km - 14.64) < 0.2);
+// Select by the structural property under test, not a route-design kilometre.
+const showcase = all.find(({ b }) => b.nSpans === 3);
 
 test('fixtures contain bridges, including the 3-span showcase crossing', () => {
-  assert.ok(all.length >= 15);
-  assert.ok(showcase, 'seed 7 km 14.64 bridge');
+  assert.ok([...worlds.values()].every(world => world.route.bridges.length > 0));
+  assert.ok(showcase, 'generated routes must exercise a three-span bridge');
   assert.equal(showcase.b.nSpans, 3);
   assert.equal(showcase.g.info.piers.length, 2);
 });

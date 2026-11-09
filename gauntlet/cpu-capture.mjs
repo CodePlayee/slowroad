@@ -6,15 +6,17 @@
 //
 // Same __rig contract as gauntlet/shoot.mjs (pause, snap, ready, hideUI), but tuned
 // for SwiftShader (software WebGL), where a 1080p frame costs 20-35 s:
-// - every loading frame renders into a tiny drawing buffer (pixel ratio 0.04).
-//   LOD follows quality.lodHeight (viewport height), not the pixel ratio, so the
-//   resident world is identical to a 1080p GPU run;
+// - skip main-scene draws during loading; retain off-screen asset bakes.
+//   LOD still follows quality.lodHeight (viewport height), so the resident
+//   world is identical to a 1080p GPU run;
 // - after residency, the rAF loop is stopped and exactly one 1920x1080 frame is
 //   rendered and read back in the same task;
 // - the canvas is composited over the page background exactly as the browser
 //   presents it (a raw WebGL toDataURL would un-premultiply any alpha < 1);
 // - Vite's HMR socket is stubbed so concurrent edits cannot reload the page.
-// One shot takes ~45-75 min on an 8-core Xeon. Needs the dev server on :5188.
+// Measured 101 s alone, 132-158 s/shot with two workers on an 8-core CPU.
+// Needs the dev server on :5188. Parallel workers sharing outDir must set
+// distinct GAUNTLET_MANIFEST names, then merge their manifests afterward.
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -63,7 +65,7 @@ try {
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push(String(e.message)));
-    page.on('console', (m) => { if (m.type() === 'error' && !/favicon|404/.test(m.text())) errors.push(m.text()); });
+    page.on('console', (m) => { if (m.type() === 'error' && !/favicon/.test(m.text())) errors.push(m.text()); });
     try {
       await page.goto(`${base}/?${job.query}&paused=1&dpr=1`, { timeout: 20000, waitUntil: 'domcontentloaded' });
       await page.waitForFunction(() => window.__rig && window.__app, null, { timeout: 20000 });
@@ -72,6 +74,15 @@ try {
         const tiny = (on) => {
           app.quality.pixelRatio = on ? 0.04 : app.quality.maximumRatio;
           app.renderer.setPixelRatio(app.quality.pixelRatio);
+        };
+        // Streaming never reads the main frame back; only off-screen bakes
+        // (impostor atlases) do. Skipping the main scene draw while loading
+        // removes the dominant SwiftShader cost (millions of vertices/frame).
+        const render = app.renderer.render.bind(app.renderer);
+        let skipMain = true;
+        app.renderer.render = (scene, camera) => {
+          if (skipMain && scene === app.scene) return;
+          render(scene, camera);
         };
         try {
           tiny(true);
@@ -84,6 +95,7 @@ try {
           if (app._rafId) cancelAnimationFrame(app._rafId);
           app._rafId = 0;
           tiny(false);
+          skipMain = false;
           app.frame();
           const gl = app.renderer.domElement, c2 = document.createElement('canvas');
           c2.width = gl.width; c2.height = gl.height;
@@ -93,13 +105,17 @@ try {
           return {
             png: c2.toDataURL('image/png'),
             alpha: app.renderer.getContext().getContextAttributes().alpha,
+            resident: app.residencyOk(),
+            error: rig.error(),
             stats: rig.stats(),
             canvas: [gl.width, gl.height],
           };
         } catch (e) { return { err: String(e && e.message || e) }; }
       }, null, { timeout: 0 });
       if (res.err) throw new Error(res.err);
-      if (res.stats.residency.pending !== 0) throw new Error('not resident ' + JSON.stringify(res.stats.residency));
+      if (res.error) throw new Error(res.error);
+      if (!res.resident) throw new Error('not resident ' + JSON.stringify(res.stats.residency));
+      if (errors.length) throw new Error('browser errors: ' + errors.join(' | '));
       if (res.canvas[0] !== 1920 || res.canvas[1] !== 1080) throw new Error('canvas not full-res ' + res.canvas);
       fs.writeFileSync(out, Buffer.from(res.png.split(',')[1], 'base64'));
       const sec = Math.round((Date.now() - t0) / 1000);
@@ -113,7 +129,7 @@ try {
 } finally {
   await ctx.close();
   fs.rmSync(profile, { recursive: true, force: true });
-  const manifest = path.join(outDir, 'capture.json');
+  const manifest = path.join(outDir, process.env.GAUNTLET_MANIFEST || 'capture.json');
   const prev = fs.existsSync(manifest) ? JSON.parse(fs.readFileSync(manifest, 'utf8')) : [];
   fs.writeFileSync(manifest, JSON.stringify([...prev, ...results], null, 1));
   log('done; profile removed', profile);

@@ -3,9 +3,10 @@ import { makeRng } from '../core/rng.js';
 import { GRASS_COVERAGE, GRASS_COVERAGE_GLSL, grassRoadCoverage, grassViewCoverage, grassWinterExposure } from './grassCoverage.js';
 import { SURFACE_HASH_GLSL } from '../core/shaderNoise.js';
 import { MEADOW_FIELD_GLSL } from '../terrain/meadowField.js';
+import { PASTURE, pastureCoverage } from './pasture.js';
 
 const GRASS_LAYERS = [
-  { blades: 24, basalBlades: 18, rows: [0, 0.4, 0.75], height: [0.52, 0.76], halfWidth: [0.035, 0.052], radius: [0.06, 0.62], lean: [0.20, 0.34], shade: 0.88 },
+  { blades: 24, basalBlades: 18, rows: [0, 0.4, 0.75], height: [0.60, 0.88], halfWidth: [0.038, 0.056], radius: [0.06, 0.62], lean: [0.28, 0.46], shade: 0.88 },
   { blades: 8, rows: [0, 0.4, 0.75], height: [0.60, 0.87], halfWidth: [0.014, 0.025], radius: [0.03, 0.17], lean: [0.25, 0.42], shade: 0.95 },
   { blades: 4, rows: [0, 0.3, 0.58, 0.82], height: [0.65, 0.90], halfWidth: [0.009, 0.018], radius: [0.025, 0.12], lean: [0.23, 0.40], shade: 1 },
 ];
@@ -14,24 +15,43 @@ const LOCAL_PADDING = 0.16;
 export const GRASS_RENDER_CELL = 16;
 export const GRASS_DENSITY = Object.freeze({ low: 4, high: 26, minimum: 0.25, transition: 0.04,
   nearStart: 28, nearEnd: 56 });
+// Pasture tufts widen their leaves at most this much; the rest of the density
+// and detail compensation spreads the tuft footprint instead (GRASS_PASTURE).
+export const PASTURE_LEAF_COMPENSATION = 1.8;
+// The sparser pasture population keeps a larger far-field share of its tufts.
+export const PASTURE_DENSITY_MINIMUM = 0.4;
 // Shading/shape response to the shared meadow field. Placement is untouched:
 // clusters (~3 m) and lodged swaths only change tint, length and lean.
 export const GRASS_SWARD = Object.freeze({ clusterScale: 3.2, clusterHeight: [0.84, 1.04],
   clusterTint: Object.freeze([[0.88, 0.93, 0.90], [1.10, 1.05, 0.86]]), tuftHue: 0.06,
   lodgeLean: 0.16, lodgeShorten: 0.18 });
+// Sward light transport at night. The moon reaches lower blade sections
+// through the neighbouring blades (Beer-Lambert); its path lengthens as
+// 1/sin(elevation), so a low moon lights only the tips, while daylight keeps
+// the unattenuated sunlit sward. Moonlit blades lose chroma like the forest
+// foliage but keep a dark, warm brown-green rather than a cool grey; the sky
+// fill under neighbouring blades falls off toward the roots. The headlight
+// shades the photopic albedo.
+export const GRASS_LIGHT = Object.freeze({ density: 0.65, freePath: 1.15, minElevation: 0.12,
+  scotopic: 0.58, scotopicTint: Object.freeze([1.06, 0.98, 0.84]), nightSkyFill: Object.freeze([0.38, 0.72]) });
 // Blade palettes stay separate from the flatter ground palette; the shared
 // meadow field (meadowField.js) applies the same patch tint and sheen to both.
+// `cured` is sun-dried straw; `curedAmount` scales how many blades per tuft cure.
 const GRASS_PALETTES = {
-  spring: { lush: [0.075, 0.285, 0.030], dry: [0.220, 0.330, 0.055], tip: [0.550, 0.660, 0.140], seed: [0.24, 0.36, 0.07], seedGrowth: 0.35 },
-  summer: { lush: [0.075, 0.245, 0.024], dry: [0.240, 0.310, 0.055], tip: [0.620, 0.680, 0.140], seed: [0.48, 0.43, 0.16], seedGrowth: 1 },
-  autumn: { lush: [0.160, 0.235, 0.035], dry: [0.340, 0.245, 0.065], tip: [0.620, 0.440, 0.130], seed: [0.49, 0.32, 0.09], seedGrowth: 1 },
-  winter: { lush: [0.225, 0.235, 0.180], dry: [0.340, 0.310, 0.220], tip: [0.490, 0.480, 0.350], seed: [0.30, 0.26, 0.16], seedGrowth: 0 },
+  spring: { lush: [0.075, 0.285, 0.030], dry: [0.220, 0.330, 0.055], tip: [0.550, 0.660, 0.140], seed: [0.24, 0.36, 0.07], seedGrowth: 0.35,
+    cured: [0.300, 0.320, 0.090], curedAmount: 0.35 },
+  summer: { lush: [0.075, 0.245, 0.024], dry: [0.240, 0.310, 0.055], tip: [0.620, 0.680, 0.140], seed: [0.48, 0.43, 0.16], seedGrowth: 1,
+    cured: [0.470, 0.390, 0.125], curedAmount: 0.8 },
+  autumn: { lush: [0.160, 0.235, 0.035], dry: [0.340, 0.245, 0.065], tip: [0.620, 0.440, 0.130], seed: [0.49, 0.32, 0.09], seedGrowth: 1,
+    cured: [0.500, 0.350, 0.110], curedAmount: 1 },
+  winter: { lush: [0.225, 0.235, 0.180], dry: [0.340, 0.310, 0.220], tip: [0.490, 0.480, 0.350], seed: [0.30, 0.26, 0.16], seedGrowth: 0,
+    cured: [0.420, 0.370, 0.240], curedAmount: 0.6 },
 };
 const smoothstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-export function grassDensityLimit(pixels, distance = Infinity) {
+export function grassDensityLimit(pixels, distance = Infinity, minimum = GRASS_DENSITY.minimum) {
   const d = GRASS_DENSITY;
-  const density = d.minimum + (1 + d.transition - d.minimum) * smoothstep(d.low, d.high, pixels);
+  const density = minimum + (1 + d.transition - minimum) * smoothstep(d.low, d.high, pixels);
   return 1 + d.transition + (density - 1 - d.transition) * smoothstep(d.nearStart, d.nearEnd, distance);
 }
 
@@ -105,7 +125,9 @@ export function createGrassGeometry() {
           centers.push(x, y, z);
           roots.push(rootX, 0, rootZ);
           parameters.push(t, band, bladeSeed, role);
-          const light = (0.48 + 0.38 * smoothstep(0, 0.9, t)) * variation * profile.shade * (side < 0 ? 0.92 : 1.04);
+          // Dark, self-shadowed roots and lit tips (about the same mid-blade mean) so
+          // tufts read as volume against the turf rather than as a flat carpet.
+          const light = (0.34 + 0.58 * smoothstep(0, 0.9, t)) * variation * profile.shade * (side < 0 ? 0.92 : 1.04);
           colors.push(light * (1 + t * 0.035), light, light * (0.94 - t * 0.035));
         }
       }
@@ -182,8 +204,18 @@ export function createGrassGeometry() {
   const nearLayer = layers[2];
   layers[2] = Object.freeze({ ...nearLayer, vertexCount: positions.length / 3 - nearLayer.vertexStart,
     indexCount: indices.length - nearLayer.indexStart, prefixCount: indices.length, seedHead });
+  const geometry = tuftGeometry('field-grass-thirty-six-leaf-panicle', { positions, centers, roots, parameters, colors, indices });
+  geometry.userData.grassLayout = Object.freeze({ bladeCount, rootVertexCount: bladeCount * 2 + 2, seedStemCount: 1, seedHead,
+    basalBladeCount: layers[0].basalBladeCount, coreMiddleBladeCount: layers[0].middleBladeCount, structureBladeCount: layers[0].structureBladeCount,
+    vertexCount: positions.length / 3, triangleCount: indices.length / 3,
+    prefixIndices: Object.freeze(layers.map(layer => layer.prefixCount)), layers: Object.freeze(layers) });
+  return geometry;
+}
+
+/** Shared blade attributes, upward-biased normals and a rotation-safe bound. */
+function tuftGeometry(name, { positions, centers, roots, parameters, colors, indices }) {
   const geometry = new THREE.BufferGeometry();
-  geometry.name = 'field-grass-thirty-six-leaf-panicle';
+  geometry.name = name;
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute('aBladeCenter', new THREE.Float32BufferAttribute(centers, 3));
   geometry.setAttribute('aBladeRoot', new THREE.Float32BufferAttribute(roots, 3));
@@ -209,10 +241,77 @@ export function createGrassGeometry() {
   }
   geometry.boundingSphere.radius += LOCAL_PADDING;
   geometry.userData.cullerPadding = LOCAL_PADDING;
-  geometry.userData.grassLayout = Object.freeze({ bladeCount, rootVertexCount: bladeCount * 2 + 2, seedStemCount: 1, seedHead,
-    basalBladeCount: layers[0].basalBladeCount, coreMiddleBladeCount: layers[0].middleBladeCount, structureBladeCount: layers[0].structureBladeCount,
-    vertexCount: positions.length / 3, triangleCount: indices.length / 3,
-    prefixIndices: Object.freeze(layers.map(layer => layer.prefixCount)), layers: Object.freeze(layers) });
+  return geometry;
+}
+
+// Open-pasture tuft (pasture.js): nine slender, upright three-triangle leaves
+// rooted across the whole footprint persist at any range; ten finer curved
+// leaves only render above ~16 px (shader band 2, the roadside near-detail
+// band). Spread roots and little lean keep a patch of standing grass rather
+// than a flat rosette when seen from above. Same attributes and shader as the
+// roadside tuft, so palette, straw, meadow field, wind, snow and lighting match.
+const PASTURE_BANDS = [
+  { detail: 0, blades: 9, structure: 3, rows: [0, 0.55], height: [0.62, 1.0], halfWidth: [0.034, 0.048],
+    radius: 0.42, lean: [0.06, 0.16], droop: [0.04, 0.14], shade: 0.90 },
+  { detail: 2, blades: 10, structure: 0, rows: [0, 0.4, 0.75], height: [0.50, 0.92], halfWidth: [0.020, 0.032],
+    radius: 0.44, lean: [0.06, 0.18], droop: [0.08, 0.20], shade: 0.96 },
+];
+
+export function createPastureGeometry() {
+  const rng = makeRng(0x3a91c7), range = values => values[0] + rng() * (values[1] - values[0]);
+  const positions = [], centers = [], roots = [], parameters = [], colors = [], indices = [], prefix = [];
+  let bladeCount = 0;
+  for (let band = 0; band < PASTURE_BANDS.length; band++) {
+    const layer = PASTURE_BANDS[band];
+    for (let blade = 0; blade < layer.blades; blade++, bladeCount++) {
+      // Structure leaves survive snow like the roadside tuft's central arches.
+      const structure = blade < layer.structure, role = band === 0 ? (structure ? 1 : 0) : 2;
+      const angle = bladeCount * 2.399963 + (rng() - 0.5) * 0.6;
+      const rootRadius = Math.sqrt(rng()) * layer.radius * (structure ? 0.35 : 1);
+      const rootX = Math.cos(angle) * rootRadius, rootZ = Math.sin(angle) * rootRadius;
+      const height = range(layer.height), lean = range(layer.lean) * (structure ? 0.55 : 1);
+      const halfWidth = range(layer.halfWidth), droop = range(layer.droop);
+      const bend = angle + (rng() - 0.5) * 1.4, twist = (rng() - 0.5) * 0.8;
+      const variation = 0.90 + rng() * 0.16, bladeSeed = rng(), first = positions.length / 3;
+      for (const t of layer.rows) {
+        const curve = lean * t * t, y = height * (t - droop * t * t * t);
+        const x = rootX + Math.cos(bend) * curve, z = rootZ + Math.sin(bend) * curve;
+        const orientation = bend + twist * t, width = halfWidth * (0.75 + 0.60 * Math.sin(Math.PI * t)) * (1 - 0.6 * t);
+        for (const side of [-1, 1]) {
+          positions.push(x - Math.sin(orientation) * width * side, y, z + Math.cos(orientation) * width * side);
+          centers.push(x, y, z);
+          roots.push(rootX, 0, rootZ);
+          parameters.push(t, layer.detail, bladeSeed, role);
+          const light = (0.34 + 0.58 * smoothstep(0, 0.9, t)) * variation * layer.shade * (side < 0 ? 0.92 : 1.04);
+          colors.push(light * (1 + t * 0.035), light, light * (0.94 - t * 0.035));
+        }
+      }
+      const tip = [rootX + Math.cos(bend) * lean, height * (1 - droop), rootZ + Math.sin(bend) * lean];
+      positions.push(...tip); centers.push(...tip); roots.push(rootX, 0, rootZ);
+      parameters.push(1, layer.detail, bladeSeed, role);
+      const tipLight = variation * layer.shade;
+      colors.push(tipLight * 0.92, tipLight * 0.89, tipLight * 0.82);
+      for (let row = 0; row < layer.rows.length - 1; row++) {
+        const at = first + row * 2;
+        indices.push(at, at + 1, at + 2, at + 1, at + 3, at + 2);
+      }
+      const last = first + (layer.rows.length - 1) * 2;
+      indices.push(last, last + 1, last + 2);
+    }
+    prefix.push(indices.length);
+  }
+  let top = 0, radius = 0;
+  for (let i = 0; i < positions.length; i += 3) {
+    top = Math.max(top, positions[i + 1]);
+    radius = Math.max(radius, Math.hypot(positions[i], positions[i + 2]));
+  }
+  // Height=1 and radial diameter=1, like the roadside template.
+  for (const array of [positions, centers, roots]) for (let i = 0; i < array.length; i += 3) {
+    array[i] /= 2 * radius; array[i + 1] /= top; array[i + 2] /= 2 * radius;
+  }
+  const geometry = tuftGeometry('field-grass-pasture-tuft', { positions, centers, roots, parameters, colors, indices });
+  geometry.userData.grassLayout = Object.freeze({ bladeCount, vertexCount: positions.length / 3,
+    triangleCount: indices.length / 3, prefixIndices: Object.freeze([prefix[0], prefix[0], prefix[1]]) });
   return geometry;
 }
 
@@ -229,10 +328,14 @@ uniform float uGrassFocalPixels;
 uniform vec3 uGrassLush;
 uniform vec3 uGrassDry;
 uniform vec3 uGrassTip;
+uniform float uGrassRegionalWarmth;
 uniform vec3 uGrassSeedTint;
 uniform float uGrassSeedGrowth;
 uniform float uGrassSnow;
 uniform float uGrassDensity;
+uniform vec3 uGrassCured;
+uniform float uGrassCuredAmount;
+varying float vGrassHeight;
 ` + GRASS_COVERAGE_GLSL + SURFACE_HASH_GLSL + MEADOW_FIELD_GLSL;
 
 const VERTEX_BODY = /* glsl */`
@@ -246,22 +349,48 @@ const VERTEX_BODY = /* glsl */`
   if (aBladeParam.w < 0.5 || aBladeParam.w > 1.5) detail *= 1.0 - uGrassSnow;
   if (aBladeParam.w > 2.5) detail *= iGrassMaturity * uGrassSeedGrowth;
   float farWidth = grassViewCoverage(grassDistance) * smoothstep(1.1, 3.0, grassPixels) * iGrassRoad;
-  farWidth *= mix(1.0, grassWinterExposure(iGrassStyle.z), uGrassSnow);
+  // Winter: only scattered tufts in the densest clumps break the snowpack;
+  // metre-scale cells thin each patch so it never reads as a hard-edged mat.
+  float grassWinterTuft = grassWinterExposure(iGrassStyle.z) * smoothstep(0.45, 0.80, surfaceHash(floor(grassRoot.xz * 0.85)));
+#ifdef GRASS_PASTURE
+  grassWinterTuft = 0.0;   // open pasture lies buried under the snow
+#endif
+  farWidth *= mix(1.0, grassWinterTuft, uGrassSnow);
   float widthCompensation = 1.0 + (1.0 - midDetail) * 0.45 + (1.0 - nearDetail) * 0.15;
-  float density = ${GRASS_DENSITY.minimum.toFixed(2)} + ${(1 + GRASS_DENSITY.transition - GRASS_DENSITY.minimum).toFixed(2)}
+#ifdef GRASS_PASTURE
+  float grassDensityMinimum = ${PASTURE_DENSITY_MINIMUM.toFixed(2)};
+#else
+  float grassDensityMinimum = ${GRASS_DENSITY.minimum.toFixed(2)};
+#endif
+  float density = grassDensityMinimum + (${(1 + GRASS_DENSITY.transition).toFixed(2)} - grassDensityMinimum)
     * smoothstep(${GRASS_DENSITY.low.toFixed(1)}, ${GRASS_DENSITY.high.toFixed(1)}, grassPixels);
   density = mix(${(1 + GRASS_DENSITY.transition).toFixed(2)}, density,
     smoothstep(${GRASS_DENSITY.nearStart.toFixed(1)}, ${GRASS_DENSITY.nearEnd.toFixed(1)}, grassDistance));
   float densityEnabled = step(0.0, iGrassRank) * uGrassDensity;
   farWidth *= mix(1.0, 1.0 - smoothstep(density - ${GRASS_DENSITY.transition.toFixed(2)}, density, iGrassRank), densityEnabled);
   widthCompensation *= mix(1.0, 1.0 / clamp(density - ${(GRASS_DENSITY.transition / 2).toFixed(2)}, 0.25, 1.0), densityEnabled);
-  transformed = aBladeCenter + (transformed - aBladeCenter) * detail * widthCompensation * farWidth;
+  // Open-pasture tufts keep their leaves slender and instead spread their
+  // footprint to restore coverage, so the far sward reads as fine streaks
+  // rather than a field of separate fattened blobs.
+#ifdef GRASS_PASTURE
+  float grassLeafCompensation = min(widthCompensation, ${PASTURE_LEAF_COMPENSATION.toFixed(2)});
+  float grassSpread = sqrt(widthCompensation / grassLeafCompensation);
+#else
+  float grassLeafCompensation = widthCompensation;
+#endif
+  transformed = aBladeCenter + (transformed - aBladeCenter) * detail * grassLeafCompensation * farWidth;
   vec3 grassShapeOffset = transformed - aBladeRoot;
   grassShapeOffset.xz = mat2(grassShapeRotation.x, grassShapeRotation.y, -grassShapeRotation.y, grassShapeRotation.x)
     * grassShapeOffset.xz * grassShapeLean;
   grassShapeOffset.y *= grassShapeLength;
+  // Through the road-coverage fade tufts also shorten into the turf, so the
+  // thinning edge does not leave a scatter of needle-thin full-height blades.
+  grassShapeOffset *= mix(0.22, 1.0, smoothstep(0.0, 0.85, iGrassRoad));
   transformed = aBladeRoot + grassShapeOffset;
-  float winterHeight = aBladeParam.w < 0.5 ? 0.12 : (aBladeParam.w < 1.5 ? 0.58 : 0.28);
+#ifdef GRASS_PASTURE
+  transformed.xz *= grassSpread;
+#endif
+  float winterHeight = aBladeParam.w < 0.5 ? 0.12 : (aBladeParam.w < 1.5 ? 0.42 : 0.24);
   transformed.y *= mix(1.0, winterHeight * (0.88 + 0.12 * grassBladeVariation), uGrassSnow);
   transformed.xz += vec2(0.56, 0.83) * uGrassSnow * 0.04 * aBladeParam.x * aBladeParam.x;
   // Lodged swaths lay the upper blade down the shared world wind direction,
@@ -277,10 +406,33 @@ const VERTEX_BODY = /* glsl */`
   transformed.xz += vec2(0.765, 0.644) * grassWind;
 `;
 
+const SPOT_DIRECT = 'RE_Direct( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );';
+const DIRECTIONAL_INFO = 'getDirectionalLightInfo( directionalLight, directLight );';
+
+// Spot lights (the headlight) shade the photopic albedo; directional key
+// lights are attenuated by the sward transmittance. Unrolled loops: no declarations.
+function grassLightsChunk() {
+  const chunk = THREE.ShaderChunk.lights_fragment_begin;
+  const spot = chunk.indexOf('#if ( NUM_SPOT_LIGHTS > 0 )');
+  const spotCall = spot < 0 ? -1 : chunk.indexOf(SPOT_DIRECT, spot);
+  const directional = chunk.indexOf('#if ( NUM_DIR_LIGHTS > 0 )');
+  const directionalInfo = directional < 0 ? -1 : chunk.indexOf(DIRECTIONAL_INFO, directional);
+  if (spotCall < 0 || directionalInfo < spotCall) throw new Error('three.js lights_fragment_begin layout changed');
+  const infoEnd = directionalInfo + DIRECTIONAL_INFO.length;
+  return `${chunk.slice(0, spotCall)}
+    material.diffuseColor += grassPhotopicShift;
+    ${SPOT_DIRECT}
+    material.diffuseColor -= grassPhotopicShift;
+  ${chunk.slice(spotCall + SPOT_DIRECT.length, infoEnd)}
+    directLight.color *= grassKeyTransmit;
+  ${chunk.slice(infoEnd)}`;
+}
+
 export class GrassField {
   constructor(atmo) {
     this.atmo = atmo;
     this.geometry = createGrassGeometry();
+    this.pastureGeometry = createPastureGeometry();
     this.cellRendering = true;
     this.meshes = new Set();
     this.uniforms = {
@@ -289,18 +441,23 @@ export class GrassField {
       uGrassLush: { value: new THREE.Color(...GRASS_PALETTES.summer.lush) },
       uGrassDry: { value: new THREE.Color(...GRASS_PALETTES.summer.dry) },
       uGrassTip: { value: new THREE.Color(...GRASS_PALETTES.summer.tip) },
+      uGrassRegionalWarmth: { value: 1 },
       uGrassSeedTint: { value: new THREE.Color(...GRASS_PALETTES.summer.seed) },
       uGrassSeedGrowth: { value: GRASS_PALETTES.summer.seedGrowth },
       uGrassSnow: { value: 0 },
       uGrassDensity: { value: 1 },
+      uGrassCured: { value: new THREE.Color(...GRASS_PALETTES.summer.cured) },
+      uGrassCuredAmount: { value: GRASS_PALETTES.summer.curedAmount },
       uGrassWrap: { value: 0.025 },
+      uGrassNight: { value: 0 },
+      uGrassKeyElevation: { value: 1 },
     };
     this.material = new THREE.MeshStandardMaterial({
       name: 'field-grass', vertexColors: true, roughness: 0.97,
       metalness: 0, side: THREE.DoubleSide, transparent: false, depthWrite: true,
     });
     this.material.userData.uniforms = this.uniforms;
-    this.material.onBeforeCompile = (shader) => {
+    this._compile = (shader) => {
       Object.assign(shader.uniforms, this.uniforms);
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', '#include <common>\n' + VERTEX_HEAD)
@@ -321,7 +478,22 @@ export class GrassField {
           vec3 grassTint = mix(uGrassDry, uGrassLush, clamp(iGrassStyle.x * 0.86 + 0.08, 0.0, 1.0));
           float grassTip = smoothstep(0.42, 1.0, aBladeParam.x);
           float grassWarmth = grassTip * (0.36 + (1.0 - clamp(iGrassStyle.x, 0.0, 1.0)) * 0.26);
+          // Spring/summer tips stay greener in moist, shaded swards; dry hay retains warmth.
+          // Reuse the regional field, bounded to 0.55–1.0; other seasons retain their palette response.
+          float grassRegionalWarmth = 0.55 + 0.45 * clamp(0.35 + grassSward.x * 0.65 - grassSward.y * 0.35
+            + (1.0 - clamp(iGrassStyle.x, 0.0, 1.0)) * 0.30 - clamp(iGrassStyle.y, 0.0, 1.0) * 0.35, 0.0, 1.0);
+          grassWarmth *= mix(1.0, grassRegionalWarmth, uGrassRegionalWarmth);
           grassTint = mix(grassTint, uGrassTip, grassWarmth);
+          // Cured straw blades mixed through green tufts. The share rises in hay
+          // patches, dry ground and per tuft; each blade rolls independently, so
+          // one clump carries both golden and green leaves. Toward the outer
+          // coverage edge the sward turns short and green like the turf it meets.
+          float grassCuredShare = clamp(0.06 + grassSward.x * 0.42 + (1.0 - clamp(iGrassStyle.x, 0.0, 1.0)) * 0.30
+            + (0.5 + 0.5 * sin(iGrassStyle.w * 1.37 + 2.1)) * 0.28 - grassSward.y * 0.22, 0.0, 0.92)
+            * smoothstep(0.25, 0.90, iGrassRoad);
+          float grassBladeRoll = 0.5 + 0.5 * sin(aBladeParam.z * 47.3 + iGrassStyle.w * 2.93);
+          float grassCured = smoothstep(grassBladeRoll - 0.10, grassBladeRoll + 0.10, grassCuredShare) * uGrassCuredAmount;
+          grassTint = mix(grassTint, uGrassCured * (0.86 + 0.24 * grassTip), grassCured);
           grassTint *= (0.90 + iGrassStyle.z * 0.20) * (1.0 - iGrassStyle.y * 0.16) * (1.0 + grassBladeVariation * 0.065);
           // Same patch tint and lodged sheen as the turf, then cluster and per-tuft hue.
           grassTint *= meadowTint(grassSward) * meadowSheen(grassFieldRoot.xz, cameraPosition, grassSward.z);
@@ -335,21 +507,59 @@ export class GrassField {
           vColor.rgb *= grassTint;
           // Lower blade sections sit inside the snowpack, so tufts emerge from it
           // instead of standing on top of a grey plane.
-          vColor.rgb = mix(vColor.rgb, vec3(0.80, 0.84, 0.88), uGrassSnow * (1.0 - smoothstep(0.08, 0.42, aBladeParam.x)) * 0.85);`)
+          vColor.rgb = mix(vColor.rgb, vec3(0.80, 0.84, 0.88), uGrassSnow * (1.0 - smoothstep(0.08, 0.42, aBladeParam.x)) * 0.85);
+          vGrassHeight = aBladeParam.x;`)
         .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
           objectNormal.xz = mat2(grassShapeRotation.x, grassShapeRotation.y, -grassShapeRotation.y, grassShapeRotation.x)
             * objectNormal.xz / grassShapeLean;
           objectNormal.y /= grassShapeLength;`)
         .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + VERTEX_BODY);
       shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', '#include <common>\nuniform float uGrassWrap;')
+        .replace('#include <common>', `#include <common>
+          uniform float uGrassWrap;
+          uniform float uGrassNight;
+          uniform float uGrassKeyElevation;
+          varying float vGrassHeight;`)
         .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\nnormal = normalize(vNormal);')
+        .replace('#include <lights_physical_fragment>', `
+          // Scotopic vision: moonlit blades lose chroma toward a warm, dark
+          // straw-brown; the removed albedo is restored only for the headlight.
+          float grassNightLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+          vec3 grassPhotopicColor = diffuseColor.rgb;
+          diffuseColor.rgb = mix(diffuseColor.rgb, grassNightLuma * vec3(${GRASS_LIGHT.scotopicTint.map(v => v.toFixed(2)).join(', ')}),
+            ${GRASS_LIGHT.scotopic.toFixed(2)} * uGrassNight);
+          #include <lights_physical_fragment>
+          vec3 grassPhotopicShift = (grassPhotopicColor - diffuseColor.rgb) * (1.0 - metalnessFactor);
+          // Sward transmittance of the key light; daylight keeps the sunlit sward.
+          float grassKeyTransmit = exp(-${GRASS_LIGHT.density.toFixed(2)} * (1.0 - clamp(vGrassHeight, 0.0, 1.0))
+            * max(0.0, 1.0 / max(uGrassKeyElevation, ${GRASS_LIGHT.minElevation.toFixed(2)}) - ${GRASS_LIGHT.freePath.toFixed(2)}) * uGrassNight);`)
+        .replace('#include <lights_fragment_begin>', grassLightsChunk())
+        .replace('#include <aomap_fragment>', `
+          // Night sky fill reaches the lower blades only through the sward.
+          reflectedLight.indirectDiffuse *= mix(1.0, mix(${GRASS_LIGHT.nightSkyFill[0].toFixed(2)}, ${GRASS_LIGHT.nightSkyFill[1].toFixed(2)},
+            smoothstep(0.0, 1.0, vGrassHeight)), uGrassNight);
+          #include <aomap_fragment>`)
         .replace('#include <opaque_fragment>', `
           outgoingLight += diffuseColor.rgb * uGrassWrap * (0.7 + 0.3 * (1.0 - abs(dot(normal, normalize(vViewPosition)))));
           #include <opaque_fragment>`);
     };
-    this.material.customProgramCacheKey = () => 'field-grass-cell-density-v14';
+    this.material.onBeforeCompile = this._compile;
+    this.material.customProgramCacheKey = () => 'field-grass-cell-density-v17';
+    this.pastureMaterial = null;
     atmo?.register?.(this.material);
+  }
+
+  /** Open-pasture variant, created on first use: the same program plus the GRASS_PASTURE footprint spread. */
+  _pastureMaterial() {
+    if (this.pastureMaterial) return this.pastureMaterial;
+    const material = this.material.clone();
+    material.name = 'field-grass-pasture';
+    material.defines = { GRASS_PASTURE: '' };
+    material.userData = { uniforms: this.uniforms };
+    material.onBeforeCompile = this._compile;
+    material.customProgramCacheKey = () => 'field-grass-pasture-cell-density-v1';
+    this.atmo?.register?.(material);
+    return (this.pastureMaterial = material);
   }
 
   build(records) {
@@ -359,20 +569,22 @@ export class GrassField {
     return step.value;
   }
 
-  *buildCellsSteps(records) {
+  /** `pasture` builds open-pasture records (pasture.js) with the low-triangle tuft. */
+  *buildCellsSteps(records, pasture = false) {
+    const cellSize = pasture ? PASTURE.renderCell : GRASS_RENDER_CELL;
     const cells = new Map(), meshes = [];
     let completed = false;
     try {
       for (let i = 0; i < records.length; i++) {
         if (i > 0 && i % 128 === 0) yield;
         const record = records[i];
-        const key = `${Math.floor(record.x / GRASS_RENDER_CELL)}:${Math.floor(record.z / GRASS_RENDER_CELL)}`;
+        const key = `${Math.floor(record.x / cellSize)}:${Math.floor(record.z / cellSize)}`;
         if (!cells.has(key)) cells.set(key, []);
         cells.get(key).push(record);
       }
       for (const cell of cells.values()) {
         cell.sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
-        const built = yield* this.buildSteps(cell, true);
+        const built = yield* this.buildSteps(cell, true, pasture);
         for (const mesh of built) {
           // Small static cells avoid per-frame instance compaction and uploads.
           mesh.userData.batchCullOnly = true;
@@ -389,16 +601,17 @@ export class GrassField {
     }
   }
 
-  *buildSteps(records, densityLod = false) {
+  *buildSteps(records, densityLod = false, pasture = false) {
     densityLod = densityLod === true;
     if (this.disposed || !records.length) return [];
+    const template = pasture ? this.pastureGeometry : this.geometry;
     const geometry = new THREE.BufferGeometry();
-    geometry.name = 'field-grass-population';
-    for (const [name, attribute] of Object.entries(this.geometry.attributes)) geometry.setAttribute(name, attribute);
-    geometry.setIndex(this.geometry.index);
-    geometry.boundingSphere = this.geometry.boundingSphere;
-    geometry.boundingBox = this.geometry.boundingBox;
-    geometry.userData.grassLayout = this.geometry.userData.grassLayout;
+    geometry.name = pasture ? 'field-grass-pasture-population' : 'field-grass-population';
+    for (const [name, attribute] of Object.entries(template.attributes)) geometry.setAttribute(name, attribute);
+    geometry.setIndex(template.index);
+    geometry.boundingSphere = template.boundingSphere;
+    geometry.boundingBox = template.boundingBox;
+    geometry.userData.grassLayout = template.userData.grassLayout;
     const style = new Float32Array(records.length * 4);
     geometry.setAttribute('iGrassStyle', new THREE.InstancedBufferAttribute(style, 4));
     const road = new Float32Array(records.length);
@@ -407,8 +620,8 @@ export class GrassField {
     geometry.setAttribute('iGrassMaturity', new THREE.InstancedBufferAttribute(maturity, 1));
     const ranks = new Float32Array(records.length);
     geometry.setAttribute('iGrassRank', new THREE.InstancedBufferAttribute(ranks, 1));
-    const mesh = new THREE.InstancedMesh(geometry, this.material, records.length);
-    mesh.name = 'field-grass';
+    const mesh = new THREE.InstancedMesh(geometry, pasture ? this._pastureMaterial() : this.material, records.length);
+    mesh.name = pasture ? 'field-grass-pasture' : 'field-grass';
     mesh.addEventListener('dispose', () => this.meshes.delete(mesh));
     this.meshes.add(mesh);
     let completed = false;
@@ -434,7 +647,8 @@ export class GrassField {
         matrix.compose(position, rotation, scale);
         mesh.setMatrixAt(i, matrix);
         style.set([record.moisture ?? 0.5, record.cover ?? 0, record.clump ?? record.rank ?? 0.5, record.phase ?? 0], i * 4);
-        road[i] = record.roadDist == null ? 1 : grassRoadCoverage(record.roadDist);
+        road[i] = pasture ? pastureCoverage(record.roadDist, record.clump ?? 0.5)
+          : record.roadDist == null ? 1 : grassRoadCoverage(record.roadDist, record.clump ?? 0.5);
         maturity[i] = grassSeedPresence(record.phase ?? 0);
         ranks[i] = densityLod ? record.rank ?? 0 : -1;
         hasRoadCoverage ||= road[i] > 0;
@@ -460,7 +674,8 @@ export class GrassField {
       mesh.userData.cullerPadding = LOCAL_PADDING;
       // Width compensation reaches 4x in the far field; only leaf half-widths
       // expand, so this also conservatively encloses those wider ribbons.
-      mesh.userData.batchCullPadding = maxScale * 0.4;
+      // Pasture tufts instead spread their footprint up to sqrt(6.4 / 1.8) ~ 1.9x.
+      mesh.userData.batchCullPadding = maxScale * (pasture ? 0.7 : 0.4);
       mesh.userData.instanceVisibilityVersion = 0;
       mesh.onBeforeRender = (_renderer, _scene, camera, drawGeometry) => {
         worldRootBounds.copy(rootBounds).applyMatrix4(mesh.matrixWorld);
@@ -471,7 +686,8 @@ export class GrassField {
         const pixels = largestHeight * this.uniforms.uGrassFocalPixels.value / Math.max(nearest, 1);
         let drawnPixels = pixels;
         if (densityLod) {
-          const limit = this.uniforms.uGrassDensity.value === 1 ? grassDensityLimit(pixels, nearest) + 0.001 : 2;
+          const limit = this.uniforms.uGrassDensity.value === 1
+            ? grassDensityLimit(pixels, nearest, pasture ? PASTURE_DENSITY_MINIMUM : GRASS_DENSITY.minimum) + 0.001 : 2;
           let low = 0, high = records.length;
           while (low < high) {
             const middle = (low + high) >>> 1;
@@ -487,7 +703,7 @@ export class GrassField {
       if (densityLod) mesh.onAfterRender = () => { mesh.count = records.length; };
       mesh.userData.batchVisible = (camera) => {
         if (!hasRoadCoverage) return false;
-        if (this.uniforms.uGrassSnow.value === 1 && !hasWinterCoverage) return false;
+        if (this.uniforms.uGrassSnow.value === 1 && (pasture || !hasWinterCoverage)) return false;
         worldRootBounds.copy(rootBounds).applyMatrix4(mesh.matrixWorld);
         eye.setFromMatrixPosition(camera.matrixWorld);
         const nearest = worldRootBounds.distanceToPoint(eye);
@@ -497,7 +713,7 @@ export class GrassField {
       };
       mesh.userData.instanceVisible = (index, camera) => {
         if (mesh.geometry.getAttribute('iGrassRoad').getX(index) <= 0) return false;
-        if (this.uniforms.uGrassSnow.value === 1 && grassWinterExposure(mesh.geometry.getAttribute('iGrassStyle').getZ(index)) === 0) return false;
+        if (this.uniforms.uGrassSnow.value === 1 && (pasture || grassWinterExposure(mesh.geometry.getAttribute('iGrassStyle').getZ(index)) === 0)) return false;
         const instance = mesh.instanceMatrix.array, at = index * 16, m = mesh.matrixWorld.elements;
         const x = instance[at + 12], y = instance[at + 13], z = instance[at + 14];
         const view = camera.matrixWorld.elements;
@@ -532,9 +748,18 @@ export class GrassField {
     this.uniforms.uGrassLush.value.setRGB(...palette.lush);
     this.uniforms.uGrassDry.value.setRGB(...palette.dry);
     this.uniforms.uGrassTip.value.setRGB(...palette.tip);
+    this.uniforms.uGrassRegionalWarmth.value = palette === GRASS_PALETTES.spring || palette === GRASS_PALETTES.summer ? 1 : 0;
     this.uniforms.uGrassSeedTint.value.setRGB(...palette.seed);
     this.uniforms.uGrassSeedGrowth.value = palette.seedGrowth;
-    this.uniforms.uGrassWrap.value = Math.min(0.04, Math.max(0, this.atmo?.sun?.intensity ?? 1) * 0.012);
+    this.uniforms.uGrassCured.value.setRGB(...palette.cured);
+    this.uniforms.uGrassCuredAmount.value = palette.curedAmount;
+    // Key-light (sun or moon) elevation drives the sward transmittance; the
+    // wrap term models sunlit translucency and is absent under moonlight.
+    const atmoPalette = this.atmo?.palette, daylight = (atmoPalette?.dayness ?? 1) > 0.02;
+    const keyDirection = daylight ? this.atmo?.sunDir : this.atmo?.moonDir;
+    this.uniforms.uGrassNight.value = Math.min(1, Math.max(0, atmoPalette?.nightness ?? 0));
+    this.uniforms.uGrassKeyElevation.value = Number.isFinite(keyDirection?.y) ? keyDirection.y : 1;
+    this.uniforms.uGrassWrap.value = daylight ? Math.min(0.04, Math.max(0, this.atmo?.sun?.intensity ?? 1) * 0.012) : 0;
   }
 
   disposeMesh(mesh) {
@@ -553,6 +778,8 @@ export class GrassField {
     this.disposed = true;
     for (const mesh of this.meshes) this.disposeMesh(mesh);
     this.geometry.dispose();
+    this.pastureGeometry.dispose();
     this.material.dispose();
+    this.pastureMaterial?.dispose();
   }
 }

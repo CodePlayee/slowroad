@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { prepareFlowerPair, flowerMaterials } from './flower.js';
+import { grassRoadCoverage } from './grassCoverage.js';
+
+// Keep the full fade inside the 56 m draw budget; CPU and shader share its end.
+export const FLOWER_RANGE = Object.freeze({ fadeStart: 39, fadeEnd: 56 });
 
 function disposeLoadedScene(gltf) {
   const resources = new Set();
@@ -40,9 +44,9 @@ export class FlowerField {
           .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFlowerDistance = length((modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz - cameraPosition);');
         shader.fragmentShader = shader.fragmentShader
           .replace('#include <common>', '#include <common>\nuniform float uFlowerSeason;\nvarying float vFlowerDistance;')
-          .replace('#include <alphatest_fragment>', '#include <alphatest_fragment>\ndiffuseColor.a *= uFlowerSeason * (1.0 - smoothstep(55.0, 72.0, vFlowerDistance));');
+          .replace('#include <alphatest_fragment>', `#include <alphatest_fragment>\ndiffuseColor.a *= uFlowerSeason * (1.0 - smoothstep(${FLOWER_RANGE.fadeStart.toFixed(1)}, ${FLOWER_RANGE.fadeEnd.toFixed(1)}, vFlowerDistance));`);
       };
-      material.customProgramCacheKey = () => 'field-flower-v1';
+      material.customProgramCacheKey = () => 'field-flower-v2';
       atmo.register(material);
     }
     this.assetPromise = new GLTFLoader().loadAsync('/models/flower-nature.glb')
@@ -55,7 +59,10 @@ export class FlowerField {
 
   build(records) {
     if (!this.geometry || this.disposed) return [];
-    const flowers = records.filter(r => r.rank < 0.022 && r.cover < 0.65);
+    // Population marks one-colour wildflower clumps (bloom 1 white, 2 yellow);
+    // none stand in the thinning outer edge of the roadside grass.
+    const flowers = records.filter(r => r.bloom > 0 && r.cover < 0.65
+      && grassRoadCoverage(r.roadDist, r.clump) > 0.6);
     if (!flowers.length) return [];
     const result = [], matrix = new THREE.Matrix4(), position = new THREE.Vector3();
     const rotation = new THREE.Quaternion(), scale = new THREE.Vector3(), color = new THREE.Color();
@@ -77,10 +84,13 @@ export class FlowerField {
           position.set(r.x, r.surfaceY ?? r.y, r.z);
           rootBounds.expandByPoint(position);
           rotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), r.yaw);
-          const size = r.height * 0.75;
+          // Heads clear the tuft they root in (grass renders ~0.85 of its record height).
+          const size = Math.min(1.0, Math.max(0.38, r.height * 0.9 + 0.14));
           matrix.compose(position, rotation, scale.setScalar(size));
           mesh.setMatrixAt(i, matrix);
-          color.setRGB(...(part === 'stem' ? [0.16, 0.34, 0.075] : r.variant ? [0.98, 0.94, 0.72] : [0.95, 0.97, 0.94]));
+          const shade = 0.94 + 0.06 * Math.sin(r.phase * 3.1);
+          color.setRGB(...(part === 'stem' ? [0.16, 0.34, 0.075]
+            : r.bloom === 2 ? [1.0 * shade, 0.80 * shade, 0.14 * shade] : [0.95 * shade, 0.97 * shade, 0.94 * shade]));
           mesh.setColorAt(i, color);
         });
         mesh.computeBoundingSphere();
@@ -92,13 +102,13 @@ export class FlowerField {
           const x = instance[at + 12], y = instance[at + 13], z = instance[at + 14], view = camera.matrixWorld.elements;
           return Math.hypot(m[0] * x + m[4] * y + m[8] * z + m[12] - view[12],
             m[1] * x + m[5] * y + m[9] * z + m[13] - view[13],
-            m[2] * x + m[6] * y + m[10] * z + m[14] - view[14]) < 72.01;
+            m[2] * x + m[6] * y + m[10] * z + m[14] - view[14]) < FLOWER_RANGE.fadeEnd;
         };
         mesh.userData.batchVisible = camera => {
           if (this.uniforms.uFlowerSeason.value <= 0) return false;
           worldRootBounds.copy(rootBounds).applyMatrix4(mesh.matrixWorld);
           eye.setFromMatrixPosition(camera.matrixWorld);
-          return worldRootBounds.distanceToPoint(eye) < 72.01;
+          return worldRootBounds.distanceToPoint(eye) < FLOWER_RANGE.fadeEnd;
         };
       }
       return result;

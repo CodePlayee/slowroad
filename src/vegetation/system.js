@@ -3,13 +3,22 @@ import { GrassField } from './grassField.js';
 import { ForestField } from './forestField.js';
 import { FlowerField } from './flowerField.js';
 import { POPULATION, generatePopulation } from './population.js';
+import { PASTURE } from './pasture.js';
 import { PopulationPool } from './populationPool.js';
 import { GRASS_COVERAGE } from './grassCoverage.js';
 import { groupFoliage } from './cullingGroup.js';
+import { TERRAIN } from '../terrain/params.js';
 
-const KINDS = ['grass', 'shrub', 'tree'];
-const GROUND_LEVEL = { grass: 0, shrub: 1, tree: 4 };
-const PADDING = { grass: 2, shrub: 3, tree: 30 };
+const KINDS = ['grass', 'pasture', 'shrub', 'tree'];
+const LATTICE = { ...POPULATION, pasture: PASTURE };
+const GROUND_LEVEL = { grass: 0, pasture: 0, shrub: 1, tree: 4 };
+const PADDING = { grass: 2, pasture: 2, shrub: 3, tree: 30 };
+// Pasture tiles are kept while any part lies within the grass view range of
+// the camera, plus the movement allowed before the next replan (one grass tile),
+// and only where the level-0 terrain ring (chunks around the focus chunk) is
+// guaranteed to settle: their roots sit on L0 triangles.
+const PASTURE_REACH = GRASS_COVERAGE.viewEnd + POPULATION.grass.tile * Math.SQRT2;
+const PASTURE_GROUND = TERRAIN.chunkSize * TERRAIN.ringRadius - PADDING.pasture;
 const CACHE_SECONDS = 10;
 const CACHE_CELLS = 760;
 
@@ -55,11 +64,12 @@ export class VegetationSystem {
   }
 
   _job(kind, i, j, x, z) {
-    const C = POPULATION[kind].tile, pad = PADDING[kind];
+    const C = LATTICE[kind].tile, pad = PADDING[kind];
     const d = Math.hypot((i + 0.5) * C - x, (j + 0.5) * C - z);
     // Prepare the entire grass guard before distant woodland work can occupy
     // the shared population worker. Waiting until viewEnd defeats prefetching.
-    const priority = kind === 'grass' ? -2000 + d * 3
+    // Pasture tiles are cheap (a coarse ecology grid) and follow the grass.
+    const priority = kind === 'grass' ? -2000 + d * 3 : kind === 'pasture' ? -1000 + d * 3
       : kind === 'shrub' ? 800 + d * 5 : (d < 600 ? 0 : 3000) + d * 3;
     return { key: `veg:${this.version}:${kind}:${i}:${j}`, kind, i, j, d, priority,
       groundBounds: [i * C - pad, j * C - pad, (i + 1) * C + pad, (j + 1) * C + pad] };
@@ -67,22 +77,32 @@ export class VegetationSystem {
 
   _plan(x, z) {
     const signature = KINDS.map(kind => {
-      const C = POPULATION[kind].tile;
+      const C = LATTICE[kind].tile;
       return `${Math.floor(x / C)},${Math.floor(z / C)}`;
     }).join(';') + (this._grassView ? `;${Math.floor(Math.atan2(this._grassView.dz, this._grassView.dx) / (Math.PI / 12))}` : '');
     if (signature === this._signature) return false;
     this._signature = signature;
     const jobs = [];
     for (const kind of KINDS) {
-      const { tile: C, radius: R } = POPULATION[kind];
+      // Pasture coverage is defined by distance from the camera; without one
+      // there is no range to fill.
+      if (kind === 'pasture' && !this._grassView) continue;
+      const { tile: C, radius: R } = LATTICE[kind];
       const ci = Math.floor(x / C), cj = Math.floor(z / C);
       for (let j = cj - R; j <= cj + R; j++) for (let i = ci - R; i <= ci + R; i++) {
-        if (kind === 'grass' && this._grassView) {
+        if ((kind === 'grass' || kind === 'pasture') && this._grassView) {
           const view = this._grassView;
           const forward = ((i + 0.5) * C - view.x) * view.dx + ((j + 0.5) * C - view.z) * view.dz;
           // The road-following camera looks ahead. Keep two tiles behind it as
           // a turning/cache guard, rather than generate the entire rear ring.
           if (forward + C * Math.SQRT1_2 < -64) continue;
+        }
+        if (kind === 'pasture') {
+          const view = this._grassView;
+          const gapX = Math.max(0, Math.abs((i + 0.5) * C - view.x) - C / 2);
+          const gapZ = Math.max(0, Math.abs((j + 0.5) * C - view.z) - C / 2);
+          if (Math.hypot(gapX, gapZ) > PASTURE_REACH) continue;
+          if (Math.max(Math.abs((i + 0.5) * C - x), Math.abs((j + 0.5) * C - z)) + C / 2 > PASTURE_GROUND) continue;
         }
         if (kind === 'grass' && this.world?.route?.nearest) {
           // A circumscribed tile bound cannot reject any root in the road band.
@@ -183,14 +203,16 @@ export class VegetationSystem {
     const meshes = [];
     let published = false;
     try {
-      const field = job.kind === 'grass' ? this.grass : this.forest;
-      const built = job.kind === 'grass' && field.cellRendering && field.buildCellsSteps ? yield* field.buildCellsSteps(records)
+      const grassKind = job.kind === 'grass' || job.kind === 'pasture';
+      const field = grassKind ? this.grass : this.forest;
+      const built = grassKind && field.cellRendering && field.buildCellsSteps
+        ? yield* field.buildCellsSteps(records, job.kind === 'pasture')
         : field.buildSteps ? yield* field.buildSteps(records, job.kind) : field.build(records, job.kind);
-      for (const mesh of built) { mesh.userData.field = job.kind === 'grass' ? 'grass' : 'forest'; meshes.push(mesh); }
+      for (const mesh of built) { mesh.userData.field = grassKind ? 'grass' : 'forest'; meshes.push(mesh); }
       if (job.kind === 'grass') {
         for (const mesh of this.flowers.build(records)) { mesh.userData.field = 'flowers'; meshes.push(mesh); }
       }
-      const renderGroup = job.kind === 'grass' ? null : groupFoliage(meshes);
+      const renderGroup = grassKind ? null : groupFoliage(meshes);
       const entry = { job, records, meshes, renderGroup, lastUsed: performance.now(), groundReady: false };
       this._visibility(entry);
       if (renderGroup) this.group.add(renderGroup);
@@ -275,6 +297,8 @@ export class VegetationSystem {
   get pending() { return Math.max(0, this.required - this.resident); }
   get minimumReady() {
     if (!this.assetReady || this.terrain?.plantContactReady === false) return false;
+    // Pasture tiles are cheap and stream right behind the grass; like shrubs,
+    // only the near field gates first presentation (residency still waits for all).
     const critical = this._streamJobs.filter(job => job.d <
       (job.kind === 'grass' ? this._grassReadyRadius : job.kind === 'tree' ? 280 : 48));
     return critical.length > 0 && critical.every(job => this.tiles.get(job.key)?.groundReady);
@@ -303,9 +327,13 @@ export class VegetationSystem {
 
   stats() {
     const counts = { grass: 0, shrub: 0, tree: 0 };
-    for (const entry of this.tiles.values()) counts[entry.job.kind] += entry.records.length;
+    let pasture = 0;
+    for (const entry of this.tiles.values()) {
+      if (entry.job.kind === 'pasture') pasture += entry.records.length;
+      else counts[entry.job.kind] += entry.records.length;
+    }
     return { generation: this.generation, cells: this.tiles.size, cached: this.cache.size,
-      pending: this.pending, workerPending: this.pool.pending, fallbacks: this.fallbacks, counts,
+      pending: this.pending, workerPending: this.pool.pending, fallbacks: this.fallbacks, counts, pasture,
       contact: this.terrain?.plantContactStats?.() || null };
   }
 

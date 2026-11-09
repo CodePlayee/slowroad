@@ -9,6 +9,20 @@
 //              per tile because ALL tree parts share one texture atlas
 //   far        impostors drawn from the SAME layout schedule as the 3D trees, so the
 //              silhouette matches across the swap
+// Worker-safe variant metadata shared by foliage rendering and root contact.
+export const SHRUB_VARIANTS = Object.freeze([
+  Object.freeze({ key: 'shrub-0', winterBuried: false }), // woodland woody bush
+  Object.freeze({ key: 'shrub-1', winterBuried: true }),  // fern
+  Object.freeze({ key: 'shrub-2', winterBuried: true }),  // flowering verge shrub
+  Object.freeze({ key: 'shrub-3', winterBuried: true }),  // dry tussock
+  Object.freeze({ key: 'shrub-4', winterBuried: true }),  // verge woody bush
+]);
+
+export function shrubVariant(record) {
+  const variant = Math.abs(record.variant || 0);
+  return SHRUB_VARIANTS[variant < SHRUB_VARIANTS.length ? variant : variant % 2];
+}
+
 export const VEG = {
   layers: {
     // Keep the close ring crisp, then widen the cheaper cards/impostors so that
@@ -29,21 +43,33 @@ export const VEG = {
 
   // ---------------------------------------------------------------- placement
   // Forests are MASSES with crisp edges (see refs sr_01/sr_03), not a scatter.
+  // The fbm field is narrow (10-90% of land lies in 0.38-0.62), so the edge band
+  // must be narrow too: about two thirds of the land is woodland with a closed
+  // interior, the rest open pasture, instead of half-density cover everywhere.
   forestFreq: 0.00082,
-  forestThreshold: 0.42,
-  forestSharpness: 0.14,     // crisp stand boundaries, with a denser interior
+  forestThreshold: 0.465,
+  forestSharpness: 0.025,
 
-  // Groves: the ~80 m scale that makes trees CLUMP inside the mass and puts small
-  // stands out in the open meadow.
-  groveFreq: 0.0125,
-  groveLo: 0.36,
-  groveHi: 0.70,
-  groveDepth: 0.90,          // denser interior clumps without changing the macro mask
-  standaloneGrove: 0.70,     // grove value above which a stand appears outside forest
+  // Groves cut ~200 m pasture clearings into the masses: roughly a fifth of a
+  // forest opens, the remainder stays closed canopy. Zero cover remains
+  // unplanted; the forest mass still controls the larger pattern.
+  groveFreq: 0.0048,
+  groveLo: 0.39,
+  groveHi: 0.45,
+  groveDepth: 1.0,
+  standaloneGrove: 0.63,     // raw grove value above which a compact stand appears in pasture
 
   // Species coherence: conifers stand together, oaks stand together.
   speciesFreq: 0.0038,
   speciesCoherence: 0.80,    // 1 = pure stands, 0 = salt-and-pepper
+
+  // Roadside stands: a ~260 m along-road field puts the road inside woodland
+  // for roughly half its length (crisp stand ends, irregular outer edge that
+  // fades out over the reach), and in open pasture for the rest.
+  roadsideStandLo: 0.40,
+  roadsideStandHi: 0.48,
+  roadsideStandReach: [70, 135],
+  roadsideStandCover: 0.74,
 
   // Roadside openings: each side of the road gets its own along-road field, so a
   // stretch can be open meadow on one side while woodland frames the other (refs
@@ -51,14 +77,14 @@ export const VEG = {
   roadsideOpenScale: 260,    // knot spacing of the per-side opening field
   roadsideOpenDetail: 90,    // shorter knots that break segments into bays
   roadsideOpenSwing: 0.55,   // shared component that opens one side as the other closes
-  roadsideOpenLo: 0.47,      // field value where a side starts to open
-  roadsideOpenHi: 0.59,      // field value where a side is fully open
-  roadsideOpenEdgeScale: 48, // world-space ragged edge: bays, tongues, stray clumps
-  roadsideOpenEdgeAmp: 0.30,
+  roadsideOpenLo: 0.50,      // field value where a side starts to open (~37% of each side)
+  roadsideOpenHi: 0.61,      // field value where a side is fully open; both sides rarely (~6%)
+  roadsideOpenEdgeScale: 72, // broad bays and tongues, rather than small perforations
+  roadsideOpenEdgeAmp: 0.18,
   roadsideOpenDepth: [75, 140], // lateral reach of an opening; fades to closed by 150 m
   roadsideOpenDepthJitter: 40,
-  // Inside an opening, isolated clumps (not a scatter) keep it a meadow with groves.
-  roadsideGroveScale: 36,
+  // Opening remnants are small stands, wide enough to read as a group of crowns.
+  roadsideGroveScale: 52,
   roadsideGroveLo: 0.64,
   roadsideGroveHi: 0.86,
   roadsideGroveCover: 0.70,

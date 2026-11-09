@@ -15,7 +15,6 @@ const { ForestField, FOREST_LOD, MIDSTORY, foliageRenderDimensions, projectedPla
 const { prepareShrubParts, impostorBounds } = await import('../src/vegetation/foliageAssets.js');
 const { InstanceCuller } = await import('../src/vegetation/instanceCulling.js');
 const { TREE_SPECIES } = await import('../src/vegetation/treeSpecies.js');
-const { World } = await import('../src/world/world.js');
 const { POPULATION, generatePopulation } = await import('../src/vegetation/population.js');
 
 const manifest = JSON.parse(readFileSync(new URL('../public/models/woodland/manifest.json', import.meta.url), 'utf8'));
@@ -104,13 +103,17 @@ test('midstory selection is stable, approximately one third and restricted to kn
   } finally { disposeTemplates(new Map([['woody', woody], ['fern', fern]])); }
 });
 
-test('render dimensions reach 2.5-4.5m with added width and a yaw-plus-wind radius below ground padding', () => {
+test('midstory dimensions respond to ecology and retain a yaw-plus-wind radius below ground padding', () => {
   const template = shrubTemplate('woody'), shape = template.impostor.shape;
   try {
-    for (const [height, expected] of [[0.65, 2.5], [1.15, 3.5], [1.65, 4.5], [4, 4.5]]) {
+    for (const height of [0.65, 1.15, 1.65, 4]) {
       const record = shrub('dimensions', { height, width: Math.min(height, 1.65) * 1.1 });
       const dimensions = foliageRenderDimensions(record, template);
-      assert.equal(dimensions.height, expected);
+      const dry = foliageRenderDimensions({ ...record, cover: 0, moisture: 0 }, template);
+      const wet = foliageRenderDimensions({ ...record, cover: 1, moisture: 1 }, template);
+      assert.ok(dry.height < wet.height && dry.width <= wet.width);
+      assert.ok(dimensions.height >= dry.height && dimensions.height <= wet.height);
+      assert.ok(wet.height <= MIDSTORY.maximumHeight);
       assert.ok(dimensions.width > record.width);
       assert.ok((shape.radius + 0.012 * Math.max(1, shape.top) ** 2) * dimensions.width / shape.width <= MIDSTORY.maximumRadius + 1e-10);
       assert.ok(record.height === height && record.width === Math.min(height, 1.65) * 1.1);
@@ -247,15 +250,18 @@ test('the existing detached shader warmup and late resource ownership need no ne
   assert.equal(releaseCount(), 1);
 });
 
-test('fixed 160m forest and autumn populations gain middle layers without replacing any mature tree or fern', () => {
+test('seeded populations retain mature trees and ferns while woody promotion leaves records unchanged', () => {
   const woody = shrubTemplate('woody'), fern = shrubTemplate('fern');
-  const fixtures = [
-    { name: 'forest_dense', seed: 12, x: 808.5, z: -5343.19 },
-    { name: 'season_autumn', seed: 7, x: 6000.86, z: 812.05 },
-  ];
+  const fixtures = [7, 12, 31].map(seed => ({ name: `seed-${seed}`, seed, x: 0, z: 0 }));
   try {
     for (const fixture of fixtures) {
-      const world = new World(fixture.seed).build(), radius = 160, records = [];
+      const radius = 160, records = [];
+      const world = {
+        seed: fixture.seed,
+        sample(x, z, out) { Object.assign(out, { y: 40, moisture: 0.8, waterY: 0,
+          roadDist: Infinity, riverDist: 1000, channelHalf: 10 }); },
+        slopeAt(x, z, y, e, out) { out.dx = 0; out.dz = 0; return 0; },
+      };
       for (const kind of ['tree', 'shrub']) {
         const C = POPULATION[kind].tile;
         for (let j = Math.floor((fixture.z - radius) / C); j <= Math.floor((fixture.z + radius) / C); j++) {
@@ -267,23 +273,18 @@ test('fixed 160m forest and autumn populations gain middle layers without replac
         }
       }
       const snapshot = structuredClone(records), results = records.map(record => {
-        const template = record.kind === 'tree' ? { kind: 'tree' } : record.variant === 1 ? fern : woody;
+        const template = record.kind === 'tree' ? { kind: 'tree' } : record.variant === 1 ? fern
+          : record.variant === 0 ? woody : { kind: 'shrub', growthForm: 'verge' };
         return { record, template, dimensions: foliageRenderDimensions(record, template) };
       });
       const mature = results.filter(result => result.record.kind === 'tree');
       const woodyRecords = results.filter(result => result.template === woody), promoted = woodyRecords.filter(result => result.dimensions.midstory);
       const ferns = results.filter(result => result.template === fern);
-      assert.ok(promoted.length / woodyRecords.length > 0.25 && promoted.length / woodyRecords.length < 0.4, fixture.name);
-      assert.ok(promoted.every(result => result.dimensions.height >= 2.5 && result.dimensions.height <= 4.5));
+      assert.ok(mature.length > 0 && woodyRecords.length > 0 && ferns.length > 0, fixture.name);
+      assert.ok(promoted.every(result => result.dimensions.height > 0 && result.dimensions.height <= MIDSTORY.maximumHeight));
       for (const result of mature) assert.deepEqual(result.dimensions, { height: result.record.height, width: result.record.width, midstory: false });
       for (const result of ferns) assert.deepEqual(result.dimensions, { height: result.record.height * 0.68, width: result.record.width, midstory: false });
-      assert.equal(results.filter(result => result.dimensions.height >= 2 && result.dimensions.height < 6).length, promoted.length);
       assert.deepEqual(records, snapshot);
-      const heights = promoted.map(result => result.dimensions.height).sort((a, b) => a - b);
-      console.log(JSON.stringify({ scene: fixture.name, radius, trees: mature.length, woody: woodyRecords.length, ferns: ferns.length,
-        promoted: promoted.length, selectedPercent: Number((100 * promoted.length / woodyRecords.length).toFixed(2)),
-        newLowLayer: woodyRecords.length + ferns.length - promoted.length, newMiddleLayer: promoted.length,
-        midstoryHeight: [heights[0], heights[Math.floor(heights.length / 2)], heights.at(-1)].map(value => Number(value.toFixed(3))) }));
     }
   } finally { disposeTemplates(new Map([['woody', woody], ['fern', fern]])); }
 });

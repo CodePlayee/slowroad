@@ -5,14 +5,21 @@ import { TREE_SPECIES } from './treeSpecies.js';
 import { GRASS_COVERAGE } from './grassCoverage.js';
 import { grassClump, forestCover, roadsideTreeCover } from './biome.js';
 import { createRoadsideSurfaceSampler } from '../terrain/surfaceSampler.js';
+import { PASTURE, generatePasture } from './pasture.js';
+import { generateVerge } from './verge.js';
+import { FURNITURE, wallBlocks } from '../road/roadside.js';
 
 export const POPULATION = {
   grass: { tile: 32, radius: 7, candidates: 9216, candidatesPerLayer: 2304, columns: 48,
     density: 1, roadClear: GRASS_COVERAGE.roadStart, waterClear: 0.4 },
-  shrub: { tile: 64, radius: 4, candidates: 48, columns: 8, density: 1, roadClear: 7, waterClear: 0.7 },
+  shrub: { tile: 64, radius: 4, candidates: 144, candidatesPerLayer: 48, columns: 8,
+    density: 1, roadClear: 5.6, waterClear: 0.7 },
   tree: { tile: 256, radius: 9, candidates: 1280, candidatesPerLayer: 160, columns: 16,
     density: 0.5, roadClear: 10, roadFade: 6, waterClear: 2,
-    roadDensityStart: 32, roadDensityEnd: 320, roadDensityNear: 1.35, roadDensityFar: 0.9 },
+    roadDensityStart: 32, roadDensityEnd: 320, roadDensityNear: 1.3, roadDensityFar: 0.9,
+    // Tall conifers never stand at the carriageway: inside coniferClear of the
+    // centreline they drop, out to coniferSwap half drop and half become birch/aspen.
+    coniferClear: 13, coniferSwap: 16 },
 };
 
 const SALT = { grass: 0x4b6719, shrub: 0x693fc1, tree: 0x72a50d };
@@ -40,10 +47,14 @@ function density(kind, sample, slope, cover, config) {
     const dryOpen = (1 - moisture) * (1 - cover * 0.7);
     const verge = smoothstep(config.roadClear, config.roadClear + 3, roadDist) *
       smoothstep(V.vergeShrubRange, V.vergeShrubRange * 0.45, roadDist);
-    return (0.10 + 0.72 * edge * edge + 0.52 * dryOpen + 0.20 * cover) *
+    // Ferns and low bushes line the open verge just past the shoulder, in the
+    // same world-space thickets as the clump field, even away from stand edges.
+    const vergeBand = smoothstep(config.roadClear, config.roadClear + 1.5, roadDist) *
+      (1 - smoothstep(11, 17, roadDist));
+    return (0.02 + 0.72 * edge * edge + 0.12 * dryOpen + 0.20 * cover + 0.34 * vergeBand) *
       (1 + (V.vergeShrubBoost - 1) * verge) *
       (slope === null ? 1 : smoothstep(V.slopeLimitShrub, V.slopeLimitShrub - 0.45, slope)) *
-      smoothstep(config.roadClear, config.roadClear + 2, roadDist) *
+      smoothstep(config.roadClear, config.roadClear + 1, roadDist) *
       smoothstep(V.treeLine + 300, V.treeLine - 40, y);
   }
   const verge = smoothstep(config.roadClear, GRASS_COVERAGE.roadFull, roadDist) * (1 - smoothstep(18, 35, roadDist));
@@ -70,7 +81,9 @@ function treeSpecies(x, z, y, moisture, seed) {
 
 // A candidate's cell and random stream never depend on camera, LOD, or season.
 // Rendering can choose stable subsets with rank without rerolling placements.
+// The open-pasture layer (pasture.js) shares the worker and fallback paths.
 export function* generatePopulation(world, kind, i, j) {
+  if (kind === PASTURE.kind) return yield* generatePasture(world, i, j);
   if (!Object.hasOwn(POPULATION, kind)) throw new RangeError('Unknown population kind');
   if (!Number.isSafeInteger(i) || !Number.isSafeInteger(j)) throw new RangeError('Population tile coordinates must be integers');
   const config = { ...POPULATION[kind] };
@@ -96,7 +109,7 @@ export function* generatePopulation(world, kind, i, j) {
     const layer = Math.floor(index / candidatesPerLayer), candidate = index % candidatesPerLayer;
     const cellX = i * columns + candidate % columns, cellZ = j * rows + Math.floor(candidate / columns);
     const rng = makeRng(hash2i(cellX, cellZ, seed ^ SALT[kind] ^ Math.imul(layer, 0x9e3779b1)));
-    const margin = kind === 'grass' ? 0.015 : 0.08;
+    const margin = kind === 'grass' ? 0.015 : 0;
     const x = (cellX + margin + rng() * (1 - margin * 2)) * dx;
     const z = (cellZ + margin + rng() * (1 - margin * 2)) * dz;
     const accept = rng();
@@ -115,11 +128,14 @@ export function* generatePopulation(world, kind, i, j) {
     // Trees and shrubs share the roadside stands and openings, so scrub gathers on
     // the ragged edges of a clearing instead of filling it like a forest interior.
     const cover = roadsideKind ? roadsideTreeCover(world, x, z, sample.roadDist, ambientCover, biomeSeed, probeRoad) : ambientCover;
-    // Supplemental trees close the canopy inside groves while leaving clearings
-    // and the original scattered trees intact, rather than filling every hill.
-    const plantingCover = kind === 'tree' && layer > 0 ? smoothstep(0.14, 0.54, cover) : cover;
-    const clump = kind === 'grass' ? grassClump(x, z, seed) : 1;
-    const clumpDensity = kind === 'grass' ? lerp(0.64, 1.16, clump) : 1;
+    // Only grove interiors receive supplemental canopy; low cover stays a
+    // genuine clearing rather than being amplified into a roadside tree row.
+    const plantingCover = kind === 'tree' && layer > 0 ? smoothstep(0.20, 0.72, cover) : cover;
+    const clump = kind === 'grass' ? grassClump(x, z, seed)
+      : kind === 'shrub' ? smoothstep(0.52, 0.76, vnoise(x / 24, z / 24, biomeSeed ^ 0x57c2a9)) : 1;
+    // More candidates inside shared thickets, none between them. The field is
+    // world-space so neither tile borders nor camera movement break a patch.
+    const clumpDensity = kind === 'grass' ? lerp(0.64, 1.16, clump) : kind === 'shrub' ? clump * 1.8 : 1;
     sample.moisture = clamp(sample.moisture, 0, 1);
     // Slope can only reduce density. Reject impossible candidates before its
     // two extra terrain samples, preserving the original final test and RNG.
@@ -130,15 +146,38 @@ export function* generatePopulation(world, kind, i, j) {
     const yaw = rng() * TAU, size = rng(), spread = rng(), rank = rng(), phase = rng() * TAU;
     const variant = rng() < 0.5 ? 0 : 1;
     let height, width, species;
+    let bloom = 0;
     if (kind === 'grass') {
-      const verge = smoothstep(config.roadClear, 10, sample.roadDist);
-      height = lerp(0.30, 0.72, clump) * lerp(0.65, 1.20, size) * lerp(0.76, 1, verge);
-      width = lerp(0.60, 1.12, clump) * lerp(0.80, 1.16, spread);
+      // Uneven sward: ~5 m world-space patches of tall seeding grass rise out of
+      // a shorter base, strongest on the uncut verge beside the shoulder.
+      const tall = smoothstep(0.40, 0.80, vnoise(x / 5.5 + 3.1, z / 5.5 - 7.4, seed ^ 0x3d71c5));
+      const vergeTall = 1 - smoothstep(9, 18, sample.roadDist);
+      height = lerp(0.36, 0.72, clump) * lerp(0.70, 1.20, size) * (1 + tall * lerp(0.22, 0.48, vergeTall));
+      // Wide, splaying clumps: arching leaves close the gaps between tufts.
+      width = lerp(0.78, 1.42, clump) * lerp(0.80, 1.16, spread) * (1 + tall * 0.16);
+      // Wildflowers gather in world-space clumps, mostly near the road edge;
+      // each clump is one colour (white or yellow), a few strays elsewhere.
+      const bloomPatch = smoothstep(0.62, 0.86, vnoise(x / 6.5 - 11.3, z / 6.5 + 5.9, seed ^ 0x5be1f9));
+      const bloomNear = 1 - smoothstep(9, 20, sample.roadDist);
+      if (rng() < 0.005 + 0.16 * bloomPatch * (0.30 + 0.70 * bloomNear)) {
+        bloom = vnoise(x / 15 + 7.7, z / 15 - 2.2, seed ^ 0x19d4e3) > 0.55 ? 2 : 1;
+      }
     } else if (kind === 'shrub') {
       height = lerp(0.65, 1.65, size);
       width = height * lerp(0.8, 1.3, spread);
+      if (probeRoad) {
+        const radius = width * 0.5;
+        const near = world.route.nearest(x, z, FURNITURE.lat.wall + FURNITURE.wallHalfWidth + radius);
+        if (near && wallBlocks(world, near.s, -near.side, near.dist, radius)) continue;
+      }
     } else {
       species = treeSpecies(x, z, sample.y, sample.moisture, biomeSeed);
+      if ((species === 'spruce' || species === 'pine') && sample.roadDist < config.coniferSwap) {
+        const keep = hash2i(Math.floor(x * 4), Math.floor(z * 4), biomeSeed ^ 0x2e5b17) / 4294967296;
+        if (sample.roadDist < config.coniferClear || keep < 0.5) continue;
+        // Slender, light-crowned broadleaves keep the stand's edge without walling the frame.
+        species = keep < 0.85 ? 'birch' : 'aspen';
+      }
       const settings = TREE_SPECIES[species];
       const range = settings.heightRange;
       const vigor = clamp(0.35 + sample.moisture * 0.75 - slope * 0.55, 0.12, 1.2);
@@ -149,8 +188,9 @@ export function* generatePopulation(world, kind, i, j) {
     records.push({ id: `${kind}:${seed}:${i}:${j}:${index}`, kind, x, y: sample.y, z,
       yaw, height, width, rank, phase, moisture: sample.moisture, cover, variant,
       groundDx: gradient.dx, groundDz: gradient.dz,
-      ...(kind === 'grass' ? { clump, roadDist: sample.roadDist,
+      ...(kind === 'grass' ? { clump, roadDist: sample.roadDist, bloom,
         surfaceY: surface.y, surfaceDx: surface.dx, surfaceDz: surface.dz } : {}), ...(species ? { species } : {}) });
   }
+  if (kind === 'shrub' && probeRoad) yield* generateVerge(world, i, j, config.tile, records);
   return records;
 }

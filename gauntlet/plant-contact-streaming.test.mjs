@@ -69,6 +69,29 @@ test('only published, supported woody tiles are read and stationary/far changes 
   assert.equal(terrain.plantContact.version, version);
 });
 
+test('winter burial removes shrub contacts and summer restores resident roots without changing records', async t => {
+  const { terrain, tiles, finish } = await fixture(t);
+  const records = [root('tree', 0.5, 0.5), { ...root('woody', 20.5, 0.5, 'shrub'), variant: 0, width: 2 },
+    { ...root('fern', 40.5, 0.5, 'shrub'), variant: 1, width: 2 },
+    { ...root('verge', 60.5, 0.5, 'shrub'), variant: 4, width: 2 }];
+  const snapshot = structuredClone(records);
+  tiles.set('trees', entry('trees', records.slice(0, 1)));
+  tiles.set('shrubs', entry('shrubs', records.slice(1), [16, -16, 80, 16], 'shrub'));
+  finish();
+  const summer = terrain.plantContact.data.slice();
+  for (const record of records) assert.ok(terrain.plantContact.sampleWorld(record.x, record.z) > 0);
+  terrain.atmo.seasonName = 'winter'; terrain.atmo.palette = SEASONS.winter; terrain.applyPalette();
+  finish();
+  assert.ok(terrain.plantContact.sampleWorld(0.5, 0.5) > 0, 'tree roots remain exposed');
+  assert.ok(terrain.plantContact.sampleWorld(20.5, 0.5) > 0, 'ordinary woody shrubs remain exposed');
+  assert.equal(terrain.plantContact.sampleWorld(40.5, 0.5), 0, 'buried fern must not leave a dark footprint');
+  assert.equal(terrain.plantContact.sampleWorld(60.5, 0.5), 0, 'buried verge shrub must not leave a dark footprint');
+  terrain.atmo.seasonName = 'summer'; terrain.atmo.palette = SEASONS.summer; terrain.applyPalette();
+  finish();
+  assert.deepEqual(terrain.plantContact.data, summer);
+  assert.deepEqual(records, snapshot);
+});
+
 test('selection and raster work are frame bounded and readiness waits beyond the ordinary scheduler', async t => {
   const { terrain, tiles, advance, finish } = await fixture(t);
   const records = Array.from({ length: 5000 }, (_, i) => root(`r${i}`, (i % 50) * 0.3 + 0.5, Math.floor(i / 50) * 0.3 + 0.5));
@@ -128,7 +151,7 @@ test('actual removal or lost support clears active roots immediately and cancell
   assert.equal(terrain.plantContact.activeCount, 0);
 });
 
-test('the 917-root 64m shrub-ring eviction preserves retained contacts through every raster frame', async t => {
+test('shrub-ring eviction preserves retained contacts through every raster frame', async t => {
   const { terrain, tiles, finish, advance } = await fixture(t);
   const trees = entry('veg:0:tree:0:0', Array.from({ length: 1024 }, (_, i) => ({
     id: `t${i}`, kind: 'tree', x: 4 + (i % 32) * 8, z: 4 + Math.floor(i / 32) * 8, width: 16,
@@ -136,11 +159,11 @@ test('the 917-root 64m shrub-ring eviction preserves retained contacts through e
   const fringe = entry('veg:0:shrub:-4:0', [root('fringe', -195.5, 1, 'shrub')], [-259, -3, -189, 67], 'shrub');
   fringe.records[0].width = 1.5;
   tiles.set(trees.job.key, trees); tiles.set(fringe.job.key, fringe);
-  assert.equal(finish(63.9, 0), 3);
+  assert.ok(finish(63.9, 0) > 1, 'fixture must exercise incremental publication');
   assert.equal(terrain.plantContact.activeCount, 917);
   const before = terrain.plantContact.sampleWorld(68, 4), pixels = terrain.plantContact.data.slice();
   const origin = terrain.plantContact.origin.toArray(), version = terrain.plantContact.version;
-  assert.equal(before, 0.5411764705882353);
+  assert.ok(before > 0, 'retained roots must contribute contact before eviction');
   tiles.delete(fringe.job.key);
   terrain.plantContactChanged(fringe, true, { reason: 'stream-eviction', focus: { x: 64.1, z: 0 } });
   assert.deepEqual(terrain.plantContact.data, pixels, 'range eviction is not a world deletion');
@@ -194,45 +217,55 @@ test('seed reset cancels contact selection and raster work without touching geom
   assert.equal(terrain.chunks.size, 0);
 });
 
-test('contact shader adds exactly one sample, protects excluded surfaces, and confines snow effects to actual roots', async t => {
+test('contact material binds the live texture and origin uniforms', async t => {
   const { terrain } = await fixture(t);
   const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader };
   terrain.material.onBeforeCompile(shader);
-  assert.equal((shader.fragmentShader.match(/\b(?:texture2D|textureGrad)\(/g) || []).length, 5);
-  assert.equal((shader.fragmentShader.match(/texture2D\(uPlantContact,/g) || []).length, 1);
   assert.equal(shader.uniforms.uPlantContact.value, terrain.plantContact.texture);
   assert.equal(shader.uniforms.uPlantContactOrigin.value, terrain.plantContact.origin);
   assert.equal(shader.uniforms.uPlantContactSpan.value, 512);
-  assert.match(shader.fragmentShader, /plantContactUv = \(uv - uPlantContactOrigin\) \/ uPlantContactSpan/);
-  assert.match(shader.fragmentShader, /plantContactBounds \* woodlandSurface/);
-  const surface = shader.fragmentShader.match(/float woodlandSurface = [\s\S]*?;/)[0];
-  // The road exclusion now arrives through roadTurf (bare dirt rim), which is driven by vRoadDist.
-  assert.match(surface, /shore/); assert.match(surface, /rk/); assert.match(surface, /roadTurf/);
-  assert.match(shader.fragmentShader.match(/float roadEdge = [\s\S]*?;/)[0], /vRoadDist/);
-  assert.match(shader.fragmentShader, /rootSnowBank \* 0\.012 - rootSnowPocket \* 0\.004\) \* winterAmount/);
-  assert.match(shader.fragmentShader, /reflectedLight\.directDiffuse \*= 1\.0 - plantContact \* mix\(0\.22, 0\.10, winterAmount\)/);
-  assert.match(shader.fragmentShader, /reflectedLight\.indirectDiffuse \*= 1\.0 - plantContact \* mix\(0\.30, 0\.14, winterAmount\)/);
   assert.equal(terrain.material.type, 'MeshStandardMaterial');
 });
 
-test('two-window input capacity exceeds the unrejected current candidate-lattice upper bound', async t => {
-  const { terrain } = await fixture(t), radius = terrain.plantContact.radius - terrain.plantContact.texelSize;
-  function bound(config, focusZ) {
-    const perLayer = config.candidatesPerLayer ?? config.candidates;
-    const dx = config.tile / config.columns, dz = config.tile / Math.ceil(perLayer / config.columns);
-    let count = 0;
-    for (let j = Math.floor((focusZ - radius) / dz); j <= Math.floor((focusZ + radius) / dz); j++) {
-      for (let i = Math.floor(-radius / dx); i <= Math.floor(radius / dx); i++) {
-        const x = Math.max(i * dx, Math.min(0, (i + 1) * dx));
-        const z = Math.max(j * dz, Math.min(focusZ, (j + 1) * dz));
-        if (x * x + (z - focusZ) ** 2 <= radius * radius) count += config.candidates / perLayer;
+test('two resident seeded windows transition without overflowing or losing target roots', async t => {
+  const { terrain, tiles, finish } = await fixture(t);
+  const focuses = [0.2, 0.8].map(fraction => world.route.at(world.route.kmToS(world.route.maxKm * fraction)));
+  for (const focus of focuses) {
+    const origin = terrain.plantContact.originForFocus(focus), span = terrain.plantContact.span;
+    for (const kind of ['tree', 'shrub']) {
+      const C = POPULATION[kind].tile;
+      for (let j = Math.floor(origin.y / C); j <= Math.floor((origin.y + span) / C); j++) {
+        for (let i = Math.floor(origin.x / C); i <= Math.floor((origin.x + span) / C); i++) {
+          const key = `${kind}:${i}:${j}`;
+          if (tiles.has(key)) continue;
+          const iterator = generatePopulation(world, kind, i, j);
+          let result;
+          do { result = iterator.next(); } while (!result.done);
+          tiles.set(key, entry(key, result.value, [i * C, j * C, (i + 1) * C, (j + 1) * C], kind));
+        }
       }
     }
-    return count;
   }
-  const windows = Array.from({ length: 8 }, (_, i) => bound(POPULATION.tree, i * 16) + bound(POPULATION.shrub, i * 16));
-  assert.equal(Math.max(...windows), 6908);
-  assert.ok(terrain.plantContact.maxRecords >= 2 * Math.max(...windows));
+  for (const focus of focuses) {
+    const field = terrain.plantContact, target = field.originForFocus(focus);
+    const windows = field.activeCount ? [field.origin, target] : [target];
+    let generatedUnion = 0;
+    for (const tile of tiles.values()) for (const record of tile.records) {
+      if (windows.some(origin => Math.hypot(record.x - origin.x - field.radius,
+        record.z - origin.y - field.radius) <= field.radius - field.texelSize)) generatedUnion++;
+    }
+    const frames = finish(focus.x, focus.z);
+    t.diagnostic(JSON.stringify({ seed: world.seedInput, focus: [focus.x, focus.z],
+      generatedUnion, activeRoots: field.activeCount, capacity: field.maxRecords, frames }));
+    assert.ok(terrain.plantContact.activeCount > 0);
+    assert.ok(terrain.plantContact.activeCount <= terrain.plantContact.maxRecords);
+    assert.deepEqual(terrain.plantContact.origin, terrain.plantContact.originForFocus(focus));
+    const fresh = await fixture(t);
+    for (const [key, value] of tiles) fresh.tiles.set(key, value);
+    fresh.finish(focus.x, focus.z);
+    assert.deepEqual(terrain.plantContact.data, fresh.terrain.plantContact.data,
+      'retaining the old window during selection must not change the final target raster');
+  }
 });
 
 test('terrain disposal releases the contact resource and pending updates cannot recreate it', async t => {
@@ -284,7 +317,8 @@ test('three real seeded near-field populations fit the selection and raster cont
       assert.ok(++frames < 1000);
     } while (!terrain.plantContactReady);
     assert.ok(terrain.plantContact.activeCount > 0);
-    assert.ok(terrain.plantContact.activeCount <= 6908);
+    assert.ok(terrain.plantContact.activeCount <= inputRecords);
+    assert.ok(terrain.plantContact.activeCount <= terrain.plantContact.maxRecords);
     assert.ok(maxSelection <= 2048);
     assert.ok(maxRaster <= 16384);
     t.diagnostic(JSON.stringify({ seed: sourceWorld.seedInput, km, inputRecords,

@@ -221,5 +221,5 @@ test('contact shading uses the road itself, tracks pose without new objects, and
   assert.ok(shader.fragmentShader.includes('wheelContact'));
   assert.ok(shader.fragmentShader.indexOf('float occlusion') > shader.fragmentShader.indexOf('col = mix( col, uPaint, paint )'));
   assert.equal(road.group.children.length, 0, 'no extra shadow plane or draw call');
-  road.material.dispose(); road.fenceMaterial.dispose();
+  road.material.dispose(); Object.values(road.furnitureMaterials).forEach(material => material.dispose());
 });

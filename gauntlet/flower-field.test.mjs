@@ -12,7 +12,7 @@ registerHooks({ load(url, context, next) {
     ? { format: 'module', source: readFileSync(fileURLToPath(url), 'utf8'), shortCircuit: true }
     : next(url, context);
 } });
-const { FlowerField } = await import('../src/vegetation/flowerField.js');
+const { FlowerField, FLOWER_RANGE } = await import('../src/vegetation/flowerField.js');
 const { InstanceCuller } = await import('../src/vegetation/instanceCulling.js');
 
 function sourceScene() {
@@ -41,7 +41,8 @@ function fixture(t) {
   return { field, resolve, reject };
 }
 
-const records = [{ id: 'grass:flower', x: 2, y: 3, z: -10, height: 0.8, yaw: 0.4, rank: 0.01, cover: 0.2, variant: 0 }];
+const records = [{ id: 'grass:flower', x: 2, y: 3, z: -10, height: 0.8, yaw: 0.4,
+  rank: 0.01, cover: 0.2, variant: 0, bloom: 1, phase: 0.5, roadDist: 8, clump: 1 }];
 
 test('late flower assets are released without resurrecting a disposed field', async (t) => {
   const { field, resolve } = fixture(t), source = sourceScene();
@@ -104,15 +105,19 @@ test('flower CPU distance agrees with shader surface roots and world-space camer
   const { field, resolve } = fixture(t), source = sourceScene();
   resolve(source.gltf); await field.assetPromise;
   const population = [{ ...records[0], x: 0, y: 0, z: 0, surfaceY: 0.77 }], meshes = field.build(population);
+  assert.equal(meshes.length, 2, 'distance checks must exercise both flower batches');
   const camera = new THREE.PerspectiveCamera(54), matrix = new THREE.Matrix4(), root = new THREE.Vector3();
-  camera.position.set(0, 0, 72.007); camera.updateMatrixWorld();
+  assert.ok(FLOWER_RANGE.fadeStart >= 0 && FLOWER_RANGE.fadeEnd > FLOWER_RANGE.fadeStart);
+  camera.position.set(0, 0, Math.sqrt((FLOWER_RANGE.fadeEnd + 0.001) ** 2 - population[0].surfaceY ** 2));
+  camera.updateMatrixWorld();
   for (const mesh of meshes) {
     mesh.updateMatrixWorld(); mesh.getMatrixAt(0, matrix); root.setFromMatrixPosition(matrix);
-    assert.ok(root.distanceTo(camera.position) > 72.01);
+    assert.ok(root.distanceTo(camera.position) > FLOWER_RANGE.fadeEnd);
+    assert.ok(camera.position.z < FLOWER_RANGE.fadeEnd, 'analytic-height root would lie inside the visibility range');
     assert.equal(mesh.userData.instanceVisible(0, camera), false, 'analytic y=0 would incorrectly retain this instance');
     assert.equal(mesh.userData.batchVisible(camera), false);
   }
-  camera.position.set(0, 0.77, 71.999); camera.updateMatrixWorld();
+  camera.position.set(0, 0.77, FLOWER_RANGE.fadeEnd - 0.001); camera.updateMatrixWorld();
   for (const mesh of meshes) assert.equal(mesh.userData.instanceVisible(0, camera), true);
 
   const parent = new THREE.Group(), cameraParent = new THREE.Group();
@@ -122,7 +127,7 @@ test('flower CPU distance agrees with shader surface roots and world-space camer
   const direction = new THREE.Vector3(0.25, 0.5, 0.8).normalize(), eye = new THREE.Vector3();
   for (const mesh of meshes) {
     mesh.getMatrixAt(0, matrix); root.setFromMatrixPosition(matrix).applyMatrix4(mesh.matrixWorld);
-    for (const [distance, visible] of [[71.999, true], [72.02, false]]) {
+    for (const [distance, visible] of [[FLOWER_RANGE.fadeStart, true], [FLOWER_RANGE.fadeEnd - 0.001, true], [FLOWER_RANGE.fadeEnd + 0.001, false]]) {
       const desired = root.clone().addScaledVector(direction, distance);
       camera.position.copy(cameraParent.worldToLocal(desired)); cameraParent.updateMatrixWorld(true);
       eye.setFromMatrixPosition(camera.matrixWorld);
@@ -130,9 +135,6 @@ test('flower CPU distance agrees with shader surface roots and world-space camer
       assert.equal(mesh.userData.instanceVisible(0, camera), visible);
       assert.equal(mesh.userData.batchVisible(camera), visible);
     }
-    const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader };
-    mesh.material.onBeforeCompile(shader);
-    assert.match(shader.vertexShader, /vFlowerDistance = length\(\(modelMatrix \* instanceMatrix \* vec4\(0\.0, 0\.0, 0\.0, 1\.0\)\)\.xyz - cameraPosition\)/);
   }
 });
 
@@ -260,8 +262,9 @@ test('late loader failures cannot mutate a disposed flower field', async (t) => 
 test('cluster template changes retain two deterministic field batches and seasonal culling', async (t) => {
   const { field, resolve } = fixture(t), source = sourceScene();
   resolve(source.gltf); await field.assetPromise;
-  const population = [...records, { ...records[0], id: 'second', x: 4, yaw: 1.2, height: 0.55, variant: 1 },
-    { ...records[0], id: 'excluded-rank', rank: 0.2 }, { ...records[0], id: 'excluded-cover', cover: 0.9 }];
+  const population = [...records, { ...records[0], id: 'second', x: 4, yaw: 1.2, height: 0.55, bloom: 2, rank: 0.9 },
+    { ...records[0], id: 'excluded-bloom', bloom: 0 }, { ...records[0], id: 'excluded-cover', cover: 0.9 },
+    { ...records[0], id: 'excluded-road', roadDist: 100 }];
   const first = field.build(population), second = field.build(population);
   assert.equal(first.length, 2);
   for (const [i, mesh] of first.entries()) {
@@ -273,8 +276,8 @@ test('cluster template changes retain two deterministic field batches and season
   assert.deepEqual(first[0].instanceMatrix.array, first[1].instanceMatrix.array);
   assert.equal(first[1].geometry.getAttribute('color'), field.geometry.blossom.getAttribute('color'));
   const colors = first[1].instanceColor.array;
-  assert.ok(colors[0] > 0.9 && colors[1] > 0.9 && colors[2] > 0.9, 'white flowers must not inherit an orange multiplier');
-  assert.ok(colors[3] > 0.9 && colors[4] > 0.9 && colors[5] > 0.65, 'alternate flowers remain pale yellow');
+  assert.ok(Math.max(...colors.slice(0, 3)) - Math.min(...colors.slice(0, 3)) < 0.1, 'white blooms stay neutral');
+  assert.ok(colors[3] > colors[4] && colors[4] > colors[5] * 2, 'yellow blooms have a distinct warm colour');
   const camera = new THREE.PerspectiveCamera(54), matrices = first.map(mesh => mesh.instanceMatrix.array.slice());
   for (const mesh of first) assert.equal(mesh.userData.instanceVisible(0, camera), true);
   field.update('winter');

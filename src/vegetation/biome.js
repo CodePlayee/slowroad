@@ -13,10 +13,13 @@ export function grassClump(x, z, seed) {
 export function forestCover(x, z, seed) {
   const forest = smoothstep(V.forestThreshold - V.forestSharpness, V.forestThreshold + V.forestSharpness,
     0.5 + 0.5 * fbm(x * V.forestFreq, z * V.forestFreq, seed ^ 0x991a, 4));
-  const grove = smoothstep(V.groveLo, V.groveHi,
-    0.5 + 0.5 * fbm(x * V.groveFreq, z * V.groveFreq, seed ^ 0x4c17, 3));
-  return clamp(forest * lerp(1 - V.groveDepth, 1, grove) +
-    (1 - forest) * Math.max(0, grove - V.standaloneGrove) / (1 - V.standaloneGrove) * 0.55, 0, 1);
+  const groveField = 0.5 + 0.5 * fbm(x * V.groveFreq, z * V.groveFreq, seed ^ 0x4c17, 3);
+  const grove = smoothstep(V.groveLo, V.groveHi, groveField);
+  // Stands outside the masses come from the top of the raw grove field: a few
+  // compact groves in the pasture, not a half-density veil wherever the
+  // clearing mask happens to saturate.
+  const standalone = smoothstep(V.standaloneGrove, V.standaloneGrove + 0.04, groveField) * 0.55;
+  return clamp(forest * lerp(1 - V.groveDepth, 1, grove) + (1 - forest) * standalone, 0, 1);
 }
 
 // Openness of one road side in [0, 1]. `s` is the nearest centreline arc length
@@ -44,9 +47,19 @@ export function roadsideTreeCover(world, x, z, roadDist, cover, seed, probeRoad 
     distance = road?.dist ?? Infinity;
   }
   if (distance >= 150) return cover;
-  const gaps = smoothstep(0.08, 0.23, vnoise(x / 260, z / 260, seed ^ 0x61da87));
-  const stand = (0.68 + 0.18 * vnoise(x / 82, z / 82, seed ^ 0x982cb1)) * gaps;
-  const floor = Math.max(cover, stand * (1 - smoothstep(90, 150, distance)));
+  // The road threads woodland for long stretches and open pasture for others:
+  // a broad along-road stand field extends the forest masses down to the
+  // verge where it is on, with crisp ends and an irregular outer edge, so the
+  // slopes beside the road carry continuous canopy rather than bare grass.
+  const standOn = smoothstep(V.roadsideStandLo, V.roadsideStandHi, vnoise(x / 260, z / 260, seed ^ 0x61da87));
+  let floor = cover;
+  if (standOn > 0) {
+    const [near, far] = V.roadsideStandReach;
+    const edge = (vnoise(x / 64, z / 64, seed ^ 0x2e7b45) - 0.5) * 50;
+    const stand = standOn * (V.roadsideStandCover + 0.14 * vnoise(x / 82, z / 82, seed ^ 0x982cb1))
+      * (1 - smoothstep(near + edge, far + edge, distance));
+    floor = Math.max(cover, stand);
+  }
   // Known carve distances still need the side and arc length of the road point.
   road ??= world.route?.nearest?.(x, z, distance + 2) ?? null;
   if (!Number.isFinite(road?.s) || !road.side) return floor;
@@ -54,5 +67,8 @@ export function roadsideTreeCover(world, x, z, roadDist, cover, seed, probeRoad 
   if (open === 0) return floor;
   const groves = V.roadsideGroveCover * smoothstep(V.roadsideGroveLo, V.roadsideGroveHi,
     vnoise(x / V.roadsideGroveScale, z / V.roadsideGroveScale, seed ^ 0x3f9c21));
-  return lerp(floor, Math.min(floor, groves), open);
+  // Openings cut through the stands on one side at a time. Subtracting cover
+  // (rather than scaling it) retreats the low-cover fringe first, preserving
+  // connected cores and truly empty bays; remnant groves can spare a clump.
+  return Math.max(0, floor - open * (1 - groves));
 }

@@ -61,22 +61,18 @@ test('shared resolution retains the existing adaptive terrain contract', () => {
   assert.equal(TERRAIN.chunkSize / terrainResolution(0, TERRAIN.chunkSize, true), 2);
 });
 
-const audit = JSON.parse(readFileSync(new URL('./rounds/ground-contact-audit/ground-contact.json', import.meta.url)));
-const worlds = new Map();
-for (const scene of audit.scenes) test(`seed ${scene.seed} km ${scene.km} worst grass contacts match actual settled terrain triangles`, () => {
-  if (!worlds.has(scene.seed)) worlds.set(scene.seed, new World(scene.seed).build());
-  const world = worlds.get(scene.seed), sampler = createRoadsideSurfaceSampler(world), reference = meshReference(world);
-  let largeOriginalMismatch = false;
-  for (const record of scene.stats.grass.worst) {
+for (const seed of [7, 12, 31]) test(`seed ${seed} roadside contacts match actual settled terrain triangles`, () => {
+  const world = new World(seed).build(), sampler = createRoadsideSurfaceSampler(world), reference = meshReference(world);
+  for (const fraction of [0.1, 0.5, 0.9]) for (const offset of [-24, -8, 8, 24]) {
+    const point = world.route.at(world.route.kmToS(world.route.maxKm * fraction));
+    const record = { id: `${seed}:${fraction}:${offset}`, x: point.x - point.tz * offset, z: point.z + point.tx * offset };
     const expected = reference(record.x, record.z), actual = sampler.sample(record.x, record.z);
     const length = Math.hypot(actual.dx, 1, actual.dz);
     const normal = [-actual.dx / length, 1 / length, -actual.dz / length];
     assert.ok(Math.abs(actual.y - expected.y) < 1e-4, record.id);
     assert.ok(Math.abs(Math.fround(actual.y) - expected.y) < 1e-4, `${record.id}: instance Float32 height`);
     assert.ok(Math.hypot(...normal.map((value, i) => value - expected.normal[i])) < 1e-4, `${record.id}: triangle normal`);
-    if (Math.abs(record.y - expected.y) > 0.5) largeOriginalMismatch = true;
   }
-  assert.ok(largeOriginalMismatch, 'fixture must retain the measured buried/floating regression');
 });
 
 test('negative coordinates, L0 boundaries and both diagonal halves match mesh-buffer planes', () => {

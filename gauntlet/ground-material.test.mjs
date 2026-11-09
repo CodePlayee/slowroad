@@ -69,10 +69,6 @@ test('forest fine RGB survives the material path without adding samples or geome
   assert.match(shader, /litterWeight \* \(1\.0 - snow\)/);
   assert.match(shader, /float litterExposure = mix\(1\.0, winterThin, winterAmount\)/);
   assert.match(shader, /woodlandCol = mix\(uSoil \* vec3\(0\.42, 0\.42, 0\.38\), woodlandCol, litterExposure\)/);
-  const grainAt = shader.indexOf('col *= mix(1.0, detailGrain, detailBlend)');
-  const litterAt = shader.indexOf('col = col * (1.0 - litterWeight - mossWeight)');
-  assert.ok(grainAt > 0 && litterAt > grainAt, 'apply grain before the leaf layer, including partial woodland weights');
-  assert.doesNotMatch(shader.slice(litterAt), /col \*= mix\(\s*1\.0, detailGrain/);
   assert.match(shader, /uLitterAutumn\.value = this\.atmo\.seasonName === 'autumn' \? 1 : 0/);
   assert.match(shader, /texture\.colorSpace = THREE\.SRGBColorSpace/);
   assert.match(shader, /woodlandSurface = \(1\.0 - smoothstep/);

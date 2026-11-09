@@ -47,6 +47,7 @@ import { Woodland } from './woodland.js';
 import { VEG as V, SEASON_HOOKS } from './params.js';
 import { fbm } from '../core/noise.js';
 import { hash2i, makeRng, clamp, smoothstep, lerp } from '../core/rng.js';
+import { forestCover } from './biome.js';
 
 const GOLD = 2.39996323;
 const TAU = Math.PI * 2;
@@ -1371,13 +1372,9 @@ export class Vegetation {
     return smoothstep(V.groveLo, V.groveHi, n);
   }
 
-  /** Combined tree cover mask: masses, groves inside them, lone stands outside. */
+  /** Combined tree cover mask: the shared biome field (masses, clearings, lone stands). */
   cover(x, z) {
-    const f = this.forest(x, z);
-    const g = this.grove(x, z);
-    const inside = f * lerp(1 - V.groveDepth, 1, g);
-    const outside = (1 - f) * Math.max(0, g - V.standaloneGrove) * (1 / (1 - V.standaloneGrove)) * 0.55;
-    return clamp(inside + outside, 0, 1);
+    return forestCover(x, z, this.seed);
   }
 
   /** 0..1 conifer share, coherent over ~250 m so species form stands. */

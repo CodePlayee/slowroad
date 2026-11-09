@@ -144,14 +144,16 @@ export class PlantContactTexture {
       const kind = this._snapshot[at], px = this._snapshot[at + 1], pz = this._snapshot[at + 2];
       if (!kind || (px - centerX) ** 2 + (pz - centerZ) ** 2 > nearSquared) continue;
       const width = this._snapshot[at + 3];
-      const radius = kind === 1 ? Math.max(1.25, Math.min(4, width * 0.18))
-        : Math.max(0.75, Math.min(2, width * 0.35));
+      // A compact root core sits inside a broader, low-contrast ground contact.
+      // Width follows the resident plant, never a camera or grass LOD boundary.
+      const radius = kind === 1 ? Math.max(1.5, Math.min(5, width * 0.28))
+        : Math.max(1, Math.min(2.5, width * 0.45));
       const x0 = Math.max(1, Math.ceil((px - radius - x) / cell - 0.5));
       const x1 = Math.min(n - 2, Math.floor((px + radius - x) / cell - 0.5));
       const z0 = Math.max(1, Math.ceil((pz - radius - z) / cell - 0.5));
       const z1 = Math.min(n - 2, Math.floor((pz + radius - z) / cell - 0.5));
       if (x0 <= x1 && z0 <= z1) stamps.push({ key: `${kind}:${px}:${pz}:${width}`,
-        x: px, z: pz, radius, strength: kind === 1 ? 0.55 : 0.30,
+        x: px, z: pz, inverseRadiusSquared: 1 / (radius * radius), strength: kind === 1 ? 0.55 : 0.30,
         x0, x1, z0, z1 });
     }
     work.plantsQueued = stamps.length;
@@ -181,10 +183,14 @@ export class PlantContactTexture {
       const stamp = job.stamps[job.index], ix = job.x, iz = job.z;
       const dx = job.originX + (ix + 0.5) * this.texelSize - stamp.x;
       const dz = job.originZ + (iz + 0.5) * this.texelSize - stamp.z;
-      const distanceSquared = dx * dx + dz * dz;
-      if (distanceSquared < stamp.radius * stamp.radius) {
-        const t = Math.max(0, Math.min(1, (Math.sqrt(distanceSquared) / stamp.radius - 0.18) / 0.82));
-        const value = Math.round(255 * stamp.strength * (1 - t * t * (3 - 2 * t)));
+      const distanceSquared = (dx * dx + dz * dz) * stamp.inverseRadiusSquared;
+      if (distanceSquared < 1) {
+        // Both lobes reach zero with zero slope: no flat dark disk or hard rim.
+        // The inner half-radius lobe anchors the stem while the outer lobe
+        // connects it to the surrounding turf without additive overlap stains.
+        const skirt = 1 - distanceSquared;
+        const core = Math.max(0, 1 - distanceSquared * 4);
+        const value = Math.round(255 * stamp.strength * (0.65 * skirt * skirt + 0.35 * core * core));
         const at = iz * this.resolution + ix;
         this._back[at] = Math.max(this._back[at], value);
       }

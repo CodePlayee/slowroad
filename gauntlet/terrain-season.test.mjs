@@ -16,12 +16,15 @@ test('terrain snow programs change only across seasonal boundaries, preserving s
   material.defines = { OTHER_FEATURE: 1 };
   const uniforms = Object.fromEntries(['uGrassLush', 'uGrassDry', 'uRock', 'uSand'].map(name => [name, { value: new THREE.Color() }]));
   Object.assign(uniforms, { uSnowAmount: { value: 0 }, uSnowLine: { value: 0 }, uLitterAutumn: { value: 0 } });
-  const terrain = { material, uniforms, atmo: { palette: SEASONS.summer, seasonName: 'summer' } };
+  let contactResets = 0;
+  const terrain = { material, uniforms, atmo: { palette: SEASONS.summer, seasonName: 'summer' },
+    resetPlantContact() { contactResets++; } };
   Terrain.prototype.applyPalette.call(terrain);
   const version = material.version, sharedSnow = uniforms.uSnowAmount;
   assert.equal(material.defines.TERRAIN_SNOW, 0);
   assert.equal(material.defines.OTHER_FEATURE, 1);
   Terrain.prototype.applyPalette.call(terrain); assert.equal(material.version, version);
+  const summerResets = contactResets;
   terrain.atmo = { palette: SEASONS.winter, seasonName: 'winter' };
   Terrain.prototype.applyPalette.call(terrain);
   assert.equal(material.defines.TERRAIN_SNOW, 1);
@@ -29,10 +32,14 @@ test('terrain snow programs change only across seasonal boundaries, preserving s
   assert.ok(sharedSnow.value > 0);
   const winterVersion = material.version;
   Terrain.prototype.applyPalette.call(terrain); assert.equal(material.version, winterVersion);
+  // Winter buries ferns and verge plants, so their ground contact must be rebuilt
+  // when entering winter, but not again while the season stays the same.
+  assert.equal(contactResets, summerResets + 1);
   terrain.atmo = { palette: SEASONS.autumn, seasonName: 'autumn' };
   Terrain.prototype.applyPalette.call(terrain);
   assert.equal(material.defines.TERRAIN_SNOW, 0);
   assert.equal(sharedSnow.value, 0);
   assert.equal(uniforms.uLitterAutumn.value, 1);
+  assert.equal(contactResets, summerResets + 2, 'leaving winter restores the buried plants');
   material.dispose();
 });

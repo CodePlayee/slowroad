@@ -19,20 +19,28 @@ float meadowNoise(vec2 p) {
              mix(surfaceHash(i + vec2(0.0, 1.0)), surfaceHash(i + vec2(1.0, 1.0)), w.x), w.y);
 }
 // x: hay share, y: dark-green share, z: lodging (0 upright .. 1 laid with the wind).
-// detail fades the finer octave and the swaths once they fall below a few pixels.
+// detail fades cluster-scale variation before the broader patches and swaths.
 vec3 meadowSward(vec2 xz, float moist, float detail) {
   vec2 lay = vec2(dot(xz, MEADOW_WIND), dot(xz, vec2(-MEADOW_WIND.y, MEADOW_WIND.x)));
   float hayBroad = meadowNoise(xz * ${f(1 / P.meadowHayScale)} + vec2(31.7, -12.9));
   float hayFine = meadowNoise(mat2(0.8, -0.6, 0.6, 0.8) * xz * ${f(1 / P.meadowPatchScale)} + vec2(-7.3, 19.1));
   float greenTone = meadowNoise(mat2(0.6, 0.8, -0.8, 0.6) * xz * ${f(1 / P.meadowGreenScale)} + vec2(5.9, 43.2));
-  float hay = smoothstep(0.50, 0.74, hayBroad * 0.64 + mix(0.5, hayFine, detail) * 0.36 + (0.5 - moist) * 0.30);
-  float lush = smoothstep(0.48, 0.78, greenTone + (moist - 0.5) * 0.24) * (1.0 - hay);
+  // A shared ~12 m cluster field bridges individual grass tufts and the broad
+  // hillside patches. Warp it with the existing fields so cluster boundaries
+  // do not form a second regular grid; turf and blade roots stay in agreement.
+  float cluster = (meadowNoise(mat2(0.8, 0.6, -0.6, 0.8) * xz
+    * ${f(1 / (P.meadowPatchScale * 0.30))} + vec2(hayFine, greenTone) * 0.65
+    + vec2(23.4, -41.7)) - 0.5) * detail * detail;
+  float hay = smoothstep(0.40, 0.78, hayBroad * 0.72 + mix(0.5, hayFine, detail) * 0.28
+    + (0.5 - moist) * 0.30 + cluster * 0.30);
+  float lush = smoothstep(0.38, 0.82, greenTone + (moist - 0.5) * 0.24
+    - cluster * 0.36) * (1.0 - hay);
   float swath = meadowNoise(vec2(lay.x * ${f(1 / P.meadowLodgeAlong)},
     (lay.y + (hayBroad - 0.5) * ${f(P.meadowLodgeMeander)}) * ${f(1 / P.meadowLodgeAcross)}) + vec2(-3.1, 8.7));
-  return vec3(hay, lush, mix(0.5, smoothstep(0.30, 0.78, swath), detail));
+  return vec3(hay, lush, mix(0.5, smoothstep(0.22, 0.84, swath + cluster * 0.22), detail * 0.65));
 }
-// Multiplicative tint: pale green by default, dark green and straw patches,
-// laid stems slightly warmer. Mean luminance stays near 1.
+// Broad hay/green transitions dominate the finer swaths, so grass and ground
+// retain the same quiet field masses at middle distance. Mean luminance near 1.
 vec3 meadowTint(vec3 sward) {
   vec3 tint = mix(vec3(1.02, 1.05, 0.90), vec3(0.72, 0.83, 0.70), sward.y * ${f(P.meadowGreenStrength)});
   tint = mix(tint, vec3(1.22, 1.07, 0.64), sward.x * ${f(P.meadowHayStrength)});

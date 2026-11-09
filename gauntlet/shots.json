@@ -126,6 +126,42 @@
       "piece": "streaming",
       "bar": "refs/slowroads/official/sr_03.jpg",
       "note": "deep into the route: proves endlessness and far-LOD quality"
+    },
+    "holdout_a": {
+      "params": "seed=7&t=10&season=summer&weather=clear&cam=chase&km=2.3",
+      "piece": "holdout",
+      "bar": "refs/slowroads/official/sr_01.jpg",
+      "note": "held out from tuning; never inspect while choosing parameters"
+    },
+    "holdout_b": {
+      "params": "seed=7&t=15&season=summer&weather=clear&cam=chase&km=14.2",
+      "piece": "holdout",
+      "bar": "refs/slowroads/official/sr_01.jpg",
+      "note": "held out from tuning; never inspect while choosing parameters"
+    },
+    "holdout_c": {
+      "params": "seed=12&t=11&season=summer&weather=clear&cam=chase&km=9.1",
+      "piece": "holdout",
+      "bar": "refs/slowroads/official/sr_01.jpg",
+      "note": "held out from tuning; never inspect while choosing parameters"
+    },
+    "holdout_d": {
+      "params": "seed=21&t=13&season=summer&weather=clear&cam=cockpit&km=8.4",
+      "piece": "holdout",
+      "bar": "refs/slowroads/official/sr_01.jpg",
+      "note": "held out from tuning; never inspect while choosing parameters"
+    },
+    "holdout_e": {
+      "params": "seed=31&t=16&season=summer&weather=hazy&cam=chase&km=6.6",
+      "piece": "holdout",
+      "bar": "refs/slowroads/official/sr_01.jpg",
+      "note": "held out from tuning; never inspect while choosing parameters"
+    },
+    "holdout_f": {
+      "params": "seed=42&t=12&season=autumn&weather=clear&cam=chase&km=4.0",
+      "piece": "holdout",
+      "bar": "refs/slowroads/official/sr_01.jpg",
+      "note": "held out from tuning; never inspect while choosing parameters"
     }
   }
 }

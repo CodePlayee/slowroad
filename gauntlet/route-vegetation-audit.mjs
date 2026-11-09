@@ -9,16 +9,14 @@ const sourceRoot = new URL('../src/', import.meta.url).href;
 const populationUrl = new URL('../src/vegetation/population.js', import.meta.url).href;
 registerHooks({ load(url, context, next) {
   if (!url.startsWith(sourceRoot) || !url.endsWith('.js')) return next(url, context);
-  let source = readFileSync(fileURLToPath(url), 'utf8');
-  // Expose the exact private placement equations only inside this audit process.
-  if (url === populationUrl) source += '\nexport { forestCover as auditForestCover, density as auditDensity, roadsideTreeCover as auditRoadsideTreeCover };\n';
-  return { format: 'module', source, shortCircuit: true };
+  return { format: 'module', source: readFileSync(fileURLToPath(url), 'utf8'), shortCircuit: true };
 } });
 
 const { World } = await import('../src/world/world.js');
-const { POPULATION, generatePopulation, treeRoadDistance, auditForestCover, auditDensity, auditRoadsideTreeCover } = await import('../src/vegetation/population.js');
+const { POPULATION, generatePopulation } = await import('../src/vegetation/population.js');
+const { forestCover: auditForestCover, roadsideTreeCover: auditRoadsideTreeCover } = await import('../src/vegetation/biome.js');
 const { VEG } = await import('../src/vegetation/params.js');
-const { clamp, hash2i, makeRng, smoothstep } = await import('../src/core/rng.js');
+const { smoothstep } = await import('../src/core/rng.js');
 const { PopulationPool } = await import('../src/vegetation/populationPool.js');
 const { VegetationSystem } = await import('../src/vegetation/system.js');
 
@@ -53,7 +51,6 @@ export function auditStation(world, km, windowMetres = 300) {
   const observations = [];
   const accepted = new Map();
   const perLayer = config.candidatesPerLayer ?? config.candidates;
-  const columns = Math.min(config.columns, perLayer), rows = Math.ceil(perLayer / columns);
   let tiles = 0;
   for (let j = Math.floor(bounds.minZ / config.tile); j <= Math.floor(bounds.maxZ / config.tile); j++) {
     for (let i = Math.floor(bounds.minX / config.tile); i <= Math.floor(bounds.maxX / config.tile); i++) {
@@ -75,42 +72,37 @@ export function auditStation(world, km, windowMetres = 300) {
       assert.equal(index, config.candidates, 'candidate sampling order changed; update the audit mapping');
     }
   }
-  const reasons = {}, zeroFactors = { cover: 0, supplementalCover: 0, altitude: 0, slope: 0 };
+  const reasons = {}, zeroFactors = { cover: 0, altitude: 0, slope: 0 };
   const bySide = { left: { candidates: 0, accepted: 0 }, right: { candidates: 0, accepted: 0 } };
   const byLayer = Array.from({ length: config.candidates / perLayer }, () => ({ candidates: 0, accepted: 0 }));
   const byDistance = { '10-30m': { candidates: 0, accepted: 0 }, '30-80m': { candidates: 0, accepted: 0 } };
   const coverValues = [], ambientCoverValues = [], elevations = [], slopes = [], altitudeWeights = [], heights = [];
   for (const record of observations) {
     const { x, z, i, j, index, sample } = record;
-    const layer = Math.floor(index / perLayer), candidate = index % perLayer;
-    const cellX = i * columns + candidate % columns, cellZ = j * rows + Math.floor(candidate / columns);
-    const rng = makeRng(hash2i(cellX, cellZ, world.seed ^ 0x72a50d ^ Math.imul(layer, 0x9e3779b1)));
-    rng(); rng(); const acceptance = rng();
+    const layer = Math.floor(index / perLayer);
     const ambientCover = auditForestCover(x, z, world.seed ^ 0x2b7c1f03);
     const cover = auditRoadsideTreeCover(world, x, z, sample.roadDist, ambientCover, world.seed ^ 0x2b7c1f03);
-    const plantingCover = layer > 0 ? smoothstep(0.14, 0.54, cover) : cover;
     const altitude = smoothstep(VEG.treeLine + VEG.treeLineFade, VEG.treeLine - VEG.treeLineFade, sample.y);
     const gradient = {};
     const slope = world.slopeAt(x, z, sample.y, 6, gradient);
     const slopeWeight = smoothstep(VEG.slopeLimitTree, VEG.slopeLimitTree - 0.34, slope);
-    const fields = { ...sample, moisture: clamp(sample.moisture, 0, 1),
-      roadDist: treeRoadDistance(world, x, z, sample.roadDist) };
-    const upper = clamp(auditDensity('tree', fields, null, plantingCover, config) * config.density, 0, 1);
-    const probability = clamp(auditDensity('tree', fields, slope, plantingCover, config) * config.density, 0, 1);
+    const id = `tree:${world.seed >>> 0}:${i}:${j}:${index}`;
     let reason;
-    if (!Number.isFinite(sample.y) || !Number.isFinite(sample.waterY) || !Number.isFinite(sample.moisture)
+    if (accepted.has(id)) {
+      reason = 'accepted';
+      assert.equal(sample.inWater, false);
+      assert.ok(sample.roadDist >= config.roadClear);
+      assert.ok(Number.isFinite(slope) && Number.isFinite(gradient.dx) && Number.isFinite(gradient.dz));
+    } else if (!Number.isFinite(sample.y) || !Number.isFinite(sample.waterY) || !Number.isFinite(sample.moisture)
       || typeof sample.roadDist !== 'number' || Number.isNaN(sample.roadDist)) reason = 'invalid';
     else if (sample.roadDist < config.roadClear) reason = 'road';
     else if (sample.inWater || sample.riverDist < sample.channelHalf * 2.4 && sample.y < sample.waterY + config.waterClear) reason = 'water';
-    else if (acceptance >= upper) reason = plantingCover === 0 ? 'coverZero' : altitude === 0 ? 'altitudeZero' : 'densityLottery';
     else if (!Number.isFinite(slope) || !Number.isFinite(gradient.dx) || !Number.isFinite(gradient.dz)) reason = 'invalidSlope';
-    else if (acceptance >= probability) reason = slopeWeight === 0 ? 'slopeZero' : 'slopeLottery';
-    else reason = 'accepted';
-    const id = `tree:${world.seed >>> 0}:${i}:${j}:${index}`;
-    assert.equal(reason === 'accepted', accepted.has(id), `audit differs from generatePopulation: ${id}`);
+    else reason = 'populationSelection';
+    // Acceptance comes from the actual generator, not a second copy of its
+    // evolving density, supplemental-canopy and species-selection equations.
     reasons[reason] = (reasons[reason] || 0) + 1;
     zeroFactors.cover += cover === 0 ? 1 : 0;
-    zeroFactors.supplementalCover += layer > 0 && plantingCover === 0 ? 1 : 0;
     zeroFactors.altitude += altitude === 0 ? 1 : 0;
     zeroFactors.slope += slopeWeight === 0 ? 1 : 0;
     for (const bucket of [bySide[record.side], byLayer[layer], byDistance[record.lateral < 30 ? '10-30m' : '30-80m']]) {

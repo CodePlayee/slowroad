@@ -10,14 +10,15 @@ import { MEADOW_FIELD_GLSL } from './meadowField.js';
 import { buildTerrainTileData, addQuadrantSkirts } from './mesh-data.js';
 import { TerrainWorkerPool } from './worker-pool.js';
 import { makeTile, parentTile, partitionIndices, selectCoverage } from './coverage.js';
-import { GRASS_COVERAGE_GLSL } from '../vegetation/grassCoverage.js';
+import { GRASS_COVERAGE, GRASS_COVERAGE_GLSL } from '../vegetation/grassCoverage.js';
 import { terrainResolution, nearRoadCorridorIntersects } from './surfaceSampler.js';
 import { PlantContactTexture } from './plantContact.js';
+import { shrubVariant } from '../vegetation/params.js';
 import { farRidgeGlsl } from './farRidge.js';
 
 const CONTACT_RECORDS_PER_FRAME = 2048;
-// The current tree/shrub lattices admit <= 6908 candidates per snapped circle,
-// before ecological rejection. Two disjoint active/target circles fit below this.
+// Fixed input budget for the active/target union, after ecological rejection.
+// Dense roadside verge candidates mean this is not an all-seed lattice bound.
 const CONTACT_MAX_RECORDS = 16384;
 
 function contactIntersects(bounds, origin, field) {
@@ -133,7 +134,8 @@ const TERRAIN_FRAG_BODY = /* glsl */`
   float rockA = vSurf.y;
   float shore = vSurf.z;
   float alt   = vSurf.w;
-  float slope = clamp( 1.0 - vTerrainNormal.y, 0.0, 1.0 );
+  vec3 terrainNormal = normalize(vTerrainNormal);
+  float slope = clamp( 1.0 - terrainNormal.y, 0.0, 1.0 );
 
   // World-space layers avoid clipmap seams while keeping broad meadow patches
   // coherent from the road edge to the distant hills.
@@ -143,7 +145,8 @@ const TERRAIN_FRAG_BODY = /* glsl */`
   float macro = tfbm( uv * 0.00135 );
   float meso  = tfbm( uv * 0.0085 + vec2( 13.7, -8.1 ) );
   float relief = tfbm( uv * 0.018 + vec2( -5.0, 17.0 ) );
-  float micro = tvn( uv * 0.22 + vec2( 4.0, 9.0 ) );
+  float micro = mix(0.5, tvn( uv * 0.22 + vec2( 4.0, 9.0 ) ),
+    1.0 - smoothstep(0.20, 0.85, uvFootprint * 0.22));
   float canopy = clamp(vEcology.x, 0.0, 1.0);
   float clump = clamp(vEcology.y, 0.0, 1.0);
   float forestFloor = smoothstep(0.24, 0.76, canopy + (clump - 0.5) * 0.20 + (meso - 0.5) * 0.25);
@@ -151,7 +154,11 @@ const TERRAIN_FRAG_BODY = /* glsl */`
   float mossShare = smoothstep(0.30, 0.82, moist) * (0.10 + 0.18 * (1.0 - clump));
   float litterShare = (0.32 + 0.42 * (1.0 - understoryGrowth)) * (1.0 - mossShare);
 
-  float m = clamp( moist * 2.15 - 0.45 + ( macro - 0.5 ) * 0.80, 0.0, 1.0 );
+  // Higher, draining shoulders dry gradually; damp valley bottoms stay green.
+  // These broad transitions follow elevation and grade rather than tile edges.
+  float drainage = smoothstep(35.0, 240.0, alt) * 0.18
+    + smoothstep(0.025, 0.22, slope) * 0.20;
+  float m = clamp( moist * 2.15 - 0.45 + ( macro - 0.5 ) * 0.80 - drainage, 0.0, 1.0 );
   vec3 col = mix( uGrassDry, uGrassLush, m );
   // Broad rolling patches and a second, offset octave keep the same biome from
   // reading as one flat green sheet at clipmap boundaries.
@@ -160,7 +167,7 @@ const TERRAIN_FRAG_BODY = /* glsl */`
   // The mesh normal carries a continuous slope signal across clipmap cells;
   // combining it with moisture makes broad soil bands instead of isolated tan
   // patches on the road verge.
-  float slopeSoil = smoothstep( 0.18, 0.62, slope + ( meso - 0.5 ) * 0.18 );
+  float slopeSoil = smoothstep( 0.035, 0.24, slope + ( meso - 0.5 ) * 0.045 );
   float rk = smoothstep( 0.26, 0.68, rockA + ( macro - 0.5 ) * 0.22 + ( relief - 0.5 ) * 0.12 + slope * 0.18 );
   // A continuous contour band ties material changes to the landform rather
   // than to clipmap cells.  It gives elevated shoulders a muted, rocky face
@@ -181,7 +188,14 @@ const TERRAIN_FRAG_BODY = /* glsl */`
   vec3 thatchCol = mix( uSoil, uGrassDry * 0.62, 0.38 ) * ( 0.80 + 0.36 * micro );
   col = mix( col, thatchCol, soil * 0.32 );
   col *= 0.82 + 0.34 * meso + 0.10 * relief;
-  vec3 rockCol = uRock * ( 0.72 + 0.48 * tfbm( uv * 0.034 ) );
+  // Reuse the existing rock octave for broad weathering; filtered micro noise
+  // supplies the grain. Centered, bounded contrast keeps the old 0.96 mean gain
+  // rather than brightening whole slopes as the two detail scales overlap.
+  float rockNoise = tfbm( uv * 0.034 );
+  float rockWeathering = smoothstep(0.24, 0.76, rockNoise * 0.68 + meso * 0.32);
+  float rockGrain = micro - 0.5;
+  float rockValue = clamp(0.96 + (rockNoise - 0.5) * 0.34 + rockGrain * 0.16, 0.76, 1.16);
+  vec3 rockCol = mix(uRock, uSoil, 0.06 + rockWeathering * 0.14) * rockValue;
   // A muted upland belt sits between meadow and exposed rock.  This broad
   // transition is the key to eliminating the flat-sheet read in the vista.
   vec3 uplandCol = mix( uGrassDry * 0.82, uRock * 0.92, 0.34 + 0.26 * contour );
@@ -202,6 +216,18 @@ const TERRAIN_FRAG_BODY = /* glsl */`
   float verge = 1.0 - smoothstep( uRoadScuffInner, uRoadScuffOuter, roadEdge );
   // Contact band hugging the pavement lip.
   float shoulder = 1.0 - smoothstep(uRoadScuffInner - 0.55, uRoadScuffInner + 0.45, roadEdge);
+  #if TERRAIN_SNOW
+  // A ploughed road leaves snow right up to the pavement: the winter melt line is
+  // a bank edge with only short world-space irregularity, not the 5 m scuff
+  // meander that would otherwise draw a wavy band beside the road.
+  vec2 bankUv = mat2(0.6, 0.8, -0.8, 0.6) * uv;
+  float bankEdge = vRoadDist + (tvn(bankUv * 0.62 + vec2(9.0, 4.0)) - 0.5) * 0.46
+    + (mix(0.5, tvn(bankUv * 2.4 + vec2(-5.0, 12.0)),
+      1.0 - smoothstep(0.35, 1.10, uvFootprint * 2.4)) - 0.5) * 0.18;
+  float bankAmount = clamp(uSnowAmount, 0.0, 1.0);
+  verge = mix(verge, 1.0 - smoothstep(uRoadScuffInner - 0.85, uRoadScuffInner - 0.35, bankEdge), bankAmount);
+  shoulder = mix(shoulder, 1.0 - smoothstep(uRoadScuffInner - 0.85, uRoadScuffInner - 0.45, bankEdge), bankAmount);
+  #endif
   // Turf at the rim is drier and dustier than the open field.
   vec3 scuffBase = mix( uSoil * ( 0.66 + 0.28 * scuffNoise ), uGrassDry * 0.84,
     smoothstep( 0.22, 0.76, moist ) );
@@ -257,6 +283,9 @@ const TERRAIN_FRAG_BODY = /* glsl */`
   float tuftField = turfFray * 0.70 + scuffNoise * 0.30;
   float tuftEdge = mix(0.10, 0.40, clamp(uSnowAmount, 0.0, 1.0));
   float roadTurf = smoothstep(-tuftEdge, tuftEdge, tuftField - mix(-0.25, 1.0, verge * verge));
+  #if TERRAIN_SNOW
+  roadTurf = mix(roadTurf, smoothstep(uRoadScuffInner - 1.05, uRoadScuffInner - 0.55, bankEdge), bankAmount);
+  #endif
   float meadowTexture = meadowSurface * roadTurf;
   float woodlandSurface = (1.0 - smoothstep(0.34, 0.78, slope))
     * (1.0 - clamp(shore, 0.0, 1.0)) * (1.0 - rk)
@@ -270,54 +299,52 @@ const TERRAIN_FRAG_BODY = /* glsl */`
   float rootSnowPocket = smoothstep(0.22, 0.50, plantContact);
   #if TERRAIN_SNOW
   float winterAmount = clamp(uSnowAmount, 0.0, 1.0);
-  float winterGrassPatch = grassWinterExposure(vEcology.y) * grassRoadCoverage(vRoadDist);
+  float winterGrassPatch = grassWinterExposure(vEcology.y) * grassRoadCoverage(vRoadDist, vEcology.y);
   float winterThin = clamp(winterGrassPatch * 0.75 + smoothstep(0.28, 0.65, slope) * 0.55
     + rk * 0.55 + forestFloor * grassWinterExposure(vEcology.y) * 0.18, 0.0, 0.85);
   #else
   float winterAmount = 0.0;
   float winterThin = 0.0;
   #endif
-  // Keep fine grain visible through the mid field while fading it gently into
-  // atmospheric color; the procedural octave prevents a texture tile boundary
-  // from becoming a new hard edge at the fade distance.
-  // Keep the surface grain alive immediately beside the road. The old
-  // 150 m fade-in left the near shoulder on a single procedural colour, which
-  // made the road verge read as a hard stamped plane before the texture ever
-  // appeared.  Fade it gradually through the mid field, then let the broad
-  // procedural layers take over in the far rings.
-  float detailWeight = 1.0 - smoothstep( 18.0, 1180.0, length( vViewPosition ) );
-  float detailGrain = mix( 0.80 + 0.42 * micro, clamp( 0.38 + 2.72 * textureValue, 0.48, 1.52 ), 0.68 );
-  float detailBlend = detailWeight * ( 0.70 + 0.30 * ( 1.0 - smoothstep( 620.0, 1680.0, length( vViewPosition ) ) ) );
-  detailBlend *= mix(1.0, winterThin, winterAmount);
+  // Filter each texture scale in its own UV footprint (repeats per pixel).
+  // Coarse roots remain legible after individual blades disappear; distance
+  // softens their contrast independently rather than flattening both at once.
+  float groundViewDistance = length(vViewPosition);
+  float fineDetailWeight = (1.0 - smoothstep(35.0, 260.0, groundViewDistance))
+    * (1.0 - smoothstep(0.05, 0.27, uvFootprint * 0.42));
+  float coarseFootprint = max(length(dFdx(coarseGrassUv)), length(dFdy(coarseGrassUv)));
+  float coarseDetailWeight = (1.0 - smoothstep(120.0, 800.0, groundViewDistance))
+    * (1.0 - smoothstep(0.05, 0.27, coarseFootprint));
+  float detailGrain = mix(1.0,
+    mix(0.90 + 0.20 * micro, clamp(0.55 + 1.80 * textureValue, 0.66, 1.32), 0.58),
+    fineDetailWeight);
   // Both texture scales remain world-fixed. Luminance preserves blade/root
   // contrast while the seasonal palette supplies the turf's color.
-  float fineGrassGrain = clamp(0.28 + 4.50 * fineGrassValue, 0.30, 1.60);
-  float coarseGrassGrain = clamp(0.28 + 4.50 * coarseGrassValue, 0.30, 1.60);
-  float turfGrain = mix(fineGrassGrain, coarseGrassGrain, 0.26);
-  detailGrain = mix(detailGrain, turfGrain, meadowTexture * 0.86);
-  vec3 meadowCol = mix(uGrassDry, uGrassLush, clamp(moist * 0.86 + 0.08, 0.0, 1.0))
-    * 0.64 * (0.88 + 0.20 * meso + 0.12 * relief);
-  col = mix(col, meadowCol, meadowTexture * 0.90);
-  col *= mix(1.0, detailGrain, detailBlend);
-  // A continuous sward: tussock (~2 m) and patch (~9 m) value/hue variation keeps
-  // the turf between grass models from reading as one flat sheet. The tussock
-  // octave fades with pixel footprint so it never shimmers in the far rings.
-  float swardPatch = tvn(uv * 0.11 + vec2(-17.0, 31.0));
+  float fineGrassGrain = mix(1.0, clamp(0.52 + 3.10 * fineGrassValue, 0.54, 1.40), fineDetailWeight);
+  float coarseGrassGrain = mix(1.0, clamp(0.52 + 3.10 * coarseGrassValue, 0.54, 1.40), coarseDetailWeight);
+  float turfGrain = mix(fineGrassGrain, coarseGrassGrain, 0.34);
+  detailGrain = mix(detailGrain, turfGrain, meadowTexture * 0.70);
+  vec3 meadowCol = mix(uGrassDry, uGrassLush, clamp(m - drainage * 0.20, 0.0, 1.0))
+    * 0.64 * (0.82 + 0.30 * meso + 0.16 * relief);
+  // Keep the soil/contour substrate visible through the turf. Near-total
+  // replacement here used to erase all broad slope and elevation variation.
+  col = mix(col, meadowCol, meadowTexture * 0.58);
+  col *= mix(1.0, detailGrain, mix(1.0, winterThin, winterAmount));
+  // A continuous sward: each procedural octave fades to its mean only when
+  // its own world-space wavelength becomes unresolved, including grazing views.
+  float swardPatch = mix(0.5, tvn(uv * 0.055 + vec2(-17.0, 31.0)),
+    1.0 - smoothstep(0.20, 0.85, uvFootprint * 0.055));
   float swardTuft = tvn(mat2(0.6, -0.8, 0.8, 0.6) * uv * 0.48 + vec2(5.0, -12.0));
-  float swardTuftFade = 1.0 - smoothstep(0.30, 1.00, length(fwidth(uv)) * 0.48);
-  float sward = swardPatch * 0.62 + mix(0.5, swardTuft, swardTuftFade) * 0.38;
+  float swardTuftFade = 1.0 - smoothstep(0.20, 0.85, uvFootprint * 0.48);
+  float sward = swardPatch * 0.78 + mix(0.5, swardTuft, swardTuftFade) * 0.22;
   float swardSurface = (1.0 - rk) * (1.0 - clamp(shore, 0.0, 1.0));
-  col *= mix(1.0, 0.86 + 0.28 * sward, swardSurface);
-  col = mix(col, col * vec3(0.90, 1.05, 0.84), smoothstep(0.52, 0.84, swardPatch) * 0.45 * swardSurface);
   // Open-meadow field (30-150 m) above the tussock/patch octaves: hay, pale and
   // dark green patches plus wind-lodged swaths with a view-dependent grain. The
   // grass models evaluate the same functions at their roots, so blades and turf
   // shift together. Fine octave and swaths fade once they fall under a few pixels.
-  vec2 meadowFootprint = vec2(length(dFdx(uv)), length(dFdy(uv)));
-  float meadowDetail = 1.0 - smoothstep(3.0, 9.0, sqrt(meadowFootprint.x * meadowFootprint.y));
+  float meadowDetail = 1.0 - smoothstep(3.0, 9.0, uvFootprint);
   vec3 meadowField = meadowSward(uv, moist, meadowDetail);
   vec3 meadowFieldTint = meadowTint(meadowField) * meadowSheen(uv, cameraPosition, meadowField.z);
-  col *= mix(vec3(1.0), meadowFieldTint, swardSurface);
   // Forest cover uses the same seeded ecology as the plants, not camera range.
   float moss = smoothstep(0.32, 0.76, moist * 0.48 + clump * 0.32 + meso * 0.20);
   // Keep the actual leaf/humus albedo: a luminance-only multiplier erased the
@@ -326,15 +353,37 @@ const TERRAIN_FRAG_BODY = /* glsl */`
   vec3 litterSeason = mix(vec3(0.82, 0.94, 0.79), vec3(1.05, 0.88, 0.64), uLitterAutumn);
   vec3 woodlandCol = litterDetail * litterSeason * litterPatch
     * mix(vec3(1.0), vec3(0.84, 0.96, 0.83), moss * 0.45);
-  // Summer forest floor is largely grown over: shaded grass, fern and seedling
-  // patches at crown scale cover the litter, which returns in autumn.
-  float floorPatch = tvn(uv * 0.21 + vec2(11.0, 5.0));
-  vec3 understoryCol = mix(uGrassLush * vec3(0.58, 0.70, 0.52), uGrassDry * vec3(0.55, 0.62, 0.42),
-    0.30 + 0.35 * (1.0 - moist)) * (0.74 + 0.40 * floorPatch);
-  float groundCover = smoothstep(0.42, 0.74, floorPatch * 0.70 + clump * 0.30) * (1.0 - 0.80 * uLitterAutumn);
-  woodlandCol = mix(woodlandCol, understoryCol * 0.92, groundCover * 0.65);
+  // Regional openings follow canopy, clumps and the existing meso field; the
+  // filtered floor octave only breaks up their edges, not their placement.
+  float floorPatch = mix(0.5, tvn(uv * 0.21 + vec2(11.0, 5.0)),
+    1.0 - smoothstep(0.20, 0.85, uvFootprint * 0.21));
+  float floorEnclosure = smoothstep(0.30, 0.72, canopy * 0.50 + clump * 0.18 + meso * 0.32);
+  // The clump-driven grass coverage fade must hand the ground to the same
+  // seeded roadside floor instead of leaving a bright meadow strip after
+  // blades thin. Keep the band finite: 255 is the no-road sentinel.
+  float roadFadeBand = smoothstep(${(GRASS_COVERAGE.roadEndNear - GRASS_COVERAGE.roadFadeWidth - 0.5).toFixed(2)}, ${(GRASS_COVERAGE.roadEndNear - GRASS_COVERAGE.roadFadeWidth + 0.8).toFixed(2)}, vRoadDist)
+    * (1.0 - smoothstep(${GRASS_COVERAGE.roadEnd.toFixed(2)}, ${(GRASS_COVERAGE.roadEnd + 2.5).toFixed(2)}, vRoadDist));
+  float roadGrassLoss = 1.0 - grassRoadCoverage(vRoadDist, clump);
+  float floorEcology = smoothstep(0.22, 0.78,
+    canopy * 0.58 + clump * 0.18 + moist * 0.16 + swardPatch * 0.08);
+  float floorSwardHold = mix(1.0, 0.82, smoothstep(0.42, 0.78, swardPatch));
+  float roadFloorBlend = roadFadeBand * roadGrassLoss * forestFloor * floorEcology
+    * woodlandSurface * mix(0.76, 1.0, floorEnclosure) * floorSwardHold;
+  // Shade the already layered turf rather than replace it with a flat palette:
+  // moisture, drainage, contour bands and both grass grains survive in clearings.
+  vec3 understoryCol = col * mix(vec3(0.98, 1.01, 0.92), vec3(0.76, 0.86, 0.69),
+    floorEnclosure * (0.72 + 0.28 * moist)) * (0.94 + 0.12 * floorPatch);
+  float groundCover = smoothstep(0.28, 0.70,
+    (1.0 - floorEnclosure) * 0.48 + moist * 0.18 + clump * 0.18 + floorPatch * 0.16)
+    * (1.0 - 0.80 * uLitterAutumn);
+  woodlandCol = mix(woodlandCol, understoryCol, groundCover * 0.78);
   float litterExposure = mix(1.0, winterThin, winterAmount);
   woodlandCol = mix(uSoil * vec3(0.42, 0.42, 0.38), woodlandCol, litterExposure);
+  // Blend through shaded understory at open edges, then into leaf/moss floor in
+  // enclosed stands. This is albedo only; road, shore, rock and snow layers
+  // retain their existing masks and ordering below.
+  vec3 roadsideFloorCol = mix(understoryCol, woodlandCol, floorEnclosure);
+  col = mix(col, roadsideFloorCol, roadFloorBlend * (0.36 + 0.26 * floorEnclosure));
   // Trees keep their road clearance, so no canopy (and no litter) covers the
   // grass corridor even where the roadside forest-cover field is high.
   float canopyReach = smoothstep(9.0, 22.0, vRoadDist);
@@ -345,9 +394,15 @@ const TERRAIN_FRAG_BODY = /* glsl */`
     clamp(moist * 1.20, 0.0, 1.0));
   mossCol *= mix(1.0, 0.85 + 0.15 * coarseGrassGrain, litterExposure);
   // Blend after the background grain so partially wooded boundaries do not
-  // multiply leaf albedo twice. The retained turf does not end at the model LOD.
-  // The turf share under a canopy is shaded understory, not open sandy meadow.
-  col = mix(col, understoryCol, woodlandWeight * 0.70);
+  // multiply leaf albedo twice. Regional gaps retain the layered meadow base;
+  // enclosed stands tint that same structure instead of laying flat green over it.
+  col = mix(col, understoryCol, woodlandWeight * (0.24 + 0.42 * floorEnclosure));
+  // Carry the shared field through retained turf and shaded understory, then
+  // blend independent leaf/moss albedo below without tinting it a second time.
+  // Rock/shore exclusions remain; the road rim and snow replace this layer later.
+  col *= mix(1.0, 0.91 + 0.18 * sward, swardSurface);
+  col = mix(col, col * vec3(0.93, 1.03, 0.89), smoothstep(0.40, 0.82, swardPatch) * 0.32 * swardSurface);
+  col *= mix(vec3(1.0), meadowFieldTint, swardSurface);
   col = col * (1.0 - litterWeight - mossWeight) + woodlandCol * litterWeight + mossCol * mossWeight;
 
   // Turf keeps its root occlusion when models yield to texture-only ground.
@@ -356,6 +411,13 @@ const TERRAIN_FRAG_BODY = /* glsl */`
     * (0.35 + 0.65 * understoryGrowth)
     * roadTurf;
   col *= 1.0 - meadowContact * uMeadowContactStrength * (0.82 + 0.18 * meso);
+  // Hand-off to the roadside grass models: their blades are warmer and less
+  // blue than the turf palette. Open turf everywhere takes the blade-mean
+  // chroma (road distance is only known inside the 62 m carve, so a
+  // road-relative ramp would itself draw a band), and the clump-driven
+  // coverage edge shows no colour step where blades give way to turf.
+  float bladeHandoff = swardSurface * (1.0 - litterWeight - mossWeight) * (1.0 - winterAmount);
+  col *= mix(vec3(1.0), vec3(1.04, 1.0, 0.72), bladeHandoff);
 
   // Bare rim between the pavement lip and the first tufts: dark soil with
   // gravel. It is ordinary lit albedo (no alpha or emissive path), and its mean
@@ -394,10 +456,12 @@ const TERRAIN_FRAG_BODY = /* glsl */`
   snow *= mix(0.66, 1.20, snowAccumulation);
   snow = max(snow, uSnowAmount * snowShelf * (0.78 + 0.12 * snowAccumulation - 0.50 * winterThin));
   snow *= 1.0 - rk * 0.56;
+  // Relief keys off the field before road thinning; see terrainMicroHeight.
+  float snowFieldCover = snow;
   // Thrown slush and tyre spray thin the snow on the bare rim; the widened,
   // world-space rim ramp keeps the melt line soft and ragged at metre scale
   // instead of a stepped grey ledge or a pixel-speckled tuft edge.
-  snow *= 1.0 - (1.0 - roadTurf) * (0.28 + 0.24 * scuffNoise) - shoulder * 0.18;
+  snow *= 1.0 - (1.0 - roadTurf) * (0.12 + 0.14 * scuffNoise) - shoulder * 0.10;
   snow *= step( 0.001, uSnowAmount );
   snow += winterAmount * snowShelf * (rootSnowBank * 0.035 - rootSnowPocket * 0.07);
   snow = clamp(snow, 0.0, 1.0);
@@ -421,26 +485,36 @@ const TERRAIN_FRAG_BODY = /* glsl */`
   snowCol = mix(snowCol, snowCol * vec3(0.88, 0.93, 1.03), snowHollow * 0.55);
   col = mix( col, snowCol, snow );
   #else
-  float snow = 0.0, snowMounds = 0.0, snowCrust = 0.0, snowFine = 0.0;
+  float snow = 0.0, snowFieldCover = 0.0, snowMounds = 0.0, snowCrust = 0.0, snowFine = 0.0;
   float snowDune = 0.0, snowRipple = 0.0, snowShapeFade = 0.0;
   #endif
 
   // Meter-scale snow relief and shallow turf roots alter lighting, not geometry.
   float surfaceReliefFade = 1.0 - smoothstep(40.0, 150.0, length(vViewPosition));
-  float turfMicroHeight = (fineGrassValue * 0.006 + coarseGrassValue * 0.012)
+  float turfMicroHeight = (fineGrassValue * 0.006 * fineDetailWeight
+    + coarseGrassValue * 0.012 * coarseDetailWeight)
     * (1.0 - rk) * (1.0 - clamp(shore, 0.0, 1.0));
   turfMicroHeight = turfMicroHeight * (1.0 - litterWeight - mossWeight)
-    + fineLitterValue * 0.025 * litterWeight + coarseGrassValue * 0.006 * mossWeight;
+    + fineLitterValue * 0.025 * fineDetailWeight * litterWeight
+    + coarseGrassValue * 0.006 * coarseDetailWeight * mossWeight;
   turfMicroHeight *= mix(1.0, winterThin, winterAmount);
   float terrainMicroHeight = mix(turfMicroHeight, snowMounds * 0.025 + snowCrust * 0.003, snow)
     * surfaceReliefFade;
+  // Six-centimetre peak-to-trough rock grain uses the existing derivative
+  // normal path only. Shore, road rim and snow retain their own surfaces;
+  // micro already fades to its mean when its footprint becomes subpixel.
+  float exposedRock = rk * (1.0 - clamp(shore, 0.0, 1.0))
+    * (1.0 - verge) * roadTurf * (1.0 - snow);
+  terrainMicroHeight += rockGrain * 0.06 * exposedRock * surfaceReliefFade;
   terrainMicroHeight += snowFine * 0.0006 * snow * surfaceReliefFade;
   terrainMicroHeight += (rootSnowBank * 0.012 - rootSnowPocket * 0.004) * winterAmount * surfaceReliefFade;
-  // Drift and ripple relief shade the snow by the real key light out to the mid field.
+  // Drift and ripple relief shade the snow by the real key light out to the mid
+  // field. Weight it by the cover before road thinning: the rim-thinned value
+  // would carve a lit crest along the melt line.
   terrainMicroHeight += (snowDune * 0.55 + mix(0.5, snowMounds, snowShapeFade) * 0.16 + snowRipple * 0.015)
-    * snow * snowShapeFade;
+    * snowFieldCover * snowShapeFade;
 
-  col *= mix(0.86 + 0.26 * micro + 0.08 * relief, 0.97 + 0.04 * meso + 0.025 * relief, snow);
+  col *= mix(0.94 + 0.10 * micro + 0.04 * relief, 0.97 + 0.04 * meso + 0.025 * relief, snow);
   // Separate distant terrain into broad, atmospheric ridge values.  This is a
   // material-only fade, so the existing LOD mesh, route and streaming budgets
   // remain untouched while far landforms stop reading as one pale sheet.
@@ -539,6 +613,20 @@ const TERRAIN_NORMAL_BODY = /* glsl */`
 `;
 
 const TERRAIN_LIGHT_BODY = /* glsl */`
+  // Broad slope contrast follows the actual sun in view space, not a baked
+  // compass direction. Comparing with level ground leaves flats unchanged and
+  // makes gentle opposing slopes readable under the strong ambient sky fill.
+  #if NUM_DIR_LIGHTS > 0
+  vec3 slopeNormalView = normalize(mat3(viewMatrix) * terrainNormal);
+  vec3 levelNormalView = viewMatrix[1].xyz;
+  float sunSlope = dot(slopeNormalView, directionalLights[0].direction)
+    - dot(levelNormalView, directionalLights[0].direction);
+  float sunEnergy = dot(directionalLights[0].color, vec3(0.2126, 0.7152, 0.0722));
+  float daylightContrast = sunEnergy / (1.0 + sunEnergy);
+  reflectedLight.directDiffuse *= clamp(1.0 + sunSlope * 0.85, 0.68, 1.28);
+  reflectedLight.indirectDiffuse *= mix(1.0,
+    clamp(1.0 + sunSlope * 0.65, 0.76, 1.16), daylightContrast);
+  #endif
   // Local canopy transmission leaves open ground and excluded surfaces alone.
   float canopyOcclusion = woodlandWeight * (0.78 + 0.22 * smoothstep(0.24, 0.76, canopy * 0.68 + meso * 0.32))
     * mix(1.0, uCanopyWinterOcclusion, winterAmount);
@@ -586,6 +674,7 @@ export class Terrain {
     this.plantContact.texture.onUpdate = () => this.plantContact.markClean();
     this._plantContactEnabled = false;
     this._plantContactDirty = true;
+    this._plantContactWinter = false;
     this._plantContactRevision = 0;
     this._plantContactFrame = -1;
     this._plantContactTarget = new THREE.Vector2(NaN, NaN);
@@ -664,7 +753,7 @@ export class Terrain {
         .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n' + TERRAIN_NORMAL_BODY)
         .replace('#include <aomap_fragment>', '#include <aomap_fragment>\n' + TERRAIN_LIGHT_BODY);
     };
-    this.material.customProgramCacheKey = () => 'terrain-season-specialized-v14';
+    this.material.customProgramCacheKey = () => 'terrain-season-specialized-v16';
     atmo.register(this.material);
     this.applyPalette();
   }
@@ -672,6 +761,11 @@ export class Terrain {
   applyPalette() {
     const p = this.atmo.palette;
     const snow = p.snowAmount > 0 ? 1 : 0;
+    const winter = this.atmo.seasonName === 'winter';
+    if (winter !== this._plantContactWinter) {
+      this._plantContactWinter = winter;
+      this.resetPlantContact();
+    }
     if (this.material && this.material.defines?.TERRAIN_SNOW !== snow) {
       this.material.defines = { ...this.material.defines, TERRAIN_SNOW: snow };
       this.material.needsUpdate = true;
@@ -767,9 +861,10 @@ export class Terrain {
         work.recordsVisited++;
         if (!['tree', 'shrub'].includes(record.kind) || !Number.isFinite(record.x) || !Number.isFinite(record.z)
           || !Number.isFinite(record.width) || record.width <= 0) continue;
+        if (this._plantContactWinter && record.kind === 'shrub' && shrubVariant(record).winterBuried) continue;
         const inTarget = contactContains(record, selection.target, field);
         if (!inTarget && !selection.windows.some(origin => contactContains(record, origin, field))) continue;
-        if (selection.records.length >= field.maxRecords) throw new RangeError('Near-field plant contact exceeds its candidate bound');
+        if (selection.records.length >= field.maxRecords) throw new RangeError('Near-field plant contact exceeds its record capacity');
         selection.records.push(record);
         if (inTarget) selection.targetTiles.add(entry.job.key);
       }

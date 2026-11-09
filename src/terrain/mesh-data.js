@@ -1,4 +1,4 @@
-import { clamp, smoothstep } from '../core/rng.js';
+import { clamp, lerp, smoothstep } from '../core/rng.js';
 import { ROAD } from '../road/params.js';
 import { World } from '../world/world.js';
 import { grassClump, forestCover, roadsideTreeCover } from '../vegetation/biome.js';
@@ -61,6 +61,8 @@ export function* buildTerrainData(world, r, { resolution: N, skirtDepth }) {
   const surf = new Float32Array((N + 1) * (N + 1) * 4);
   const eco = new Float32Array((N + 1) * (N + 1) * 2);
   const roadDist = new Float32Array((N + 1) * (N + 1));
+  // Share of each vertex that is graded road earthwork rather than natural ground.
+  const worked = new Float32Array((N + 1) * (N + 1));
   const ox = r.x0, oz = r.z0, cx = ox + C / 2, cz = oz + C / 2;
   const seed = world.seed >>> 0, biomeSeed = seed ^ 0x2b7c1f03;
   const probeDistance = 150 + C * Math.SQRT1_2;
@@ -86,6 +88,7 @@ export function* buildTerrainData(world, r, { resolution: N, skirtDepth }) {
         : 0;
       surf[k4 + 3] = sm.y;
       roadDist[j * (N + 1) + i] = Math.min(vergeDistance(world, x, z, sm), 255);
+      worked[j * (N + 1) + i] = smoothstep(0.05, 1.0, Math.abs(sm.earthwork ?? 0));
       const k2 = (j * (N + 1) + i) * 2;
       eco[k2] = roadsideTreeCover(world, x, z, sm.roadDist, forestCover(x, z, biomeSeed), biomeSeed, probeRoad);
       eco[k2 + 1] = grassClump(x, z, seed);
@@ -109,11 +112,32 @@ export function* buildTerrainData(world, r, { resolution: N, skirtDepth }) {
       const k3 = (j * (N + 1) + i) * 3;
       pos[k3] = x - cx; pos[k3 + 1] = y; pos[k3 + 2] = z - cz;
       minY = Math.min(minY, y); maxY = Math.max(maxY, y);
-      const nx = H[hi - 1] - H[hi + 1], nz = H[hi - S] - H[hi + S], ny = 2 * cell;
+      // Reconstruct the broad slope from the complete shared halo rather than
+      // just one grid cross. The diagonal samples suppress axis-aligned lighting
+      // bands, while affine slopes remain exact. Keep the narrow road cross-
+      // section unsmoothed; heights and triangle planes never change.
+      const axialX = H[hi - 1] - H[hi + 1];
+      const axialZ = H[hi - S] - H[hi + S];
+      const diagonalX = (H[hi - S - 1] + H[hi + S - 1] - H[hi - S + 1] - H[hi + S + 1]) * 0.5;
+      const diagonalZ = (H[hi - S - 1] + H[hi - S + 1] - H[hi + S - 1] - H[hi + S + 1]) * 0.5;
+      const smooth = 0.5 * smoothstep(8, 24, roadDist[j * (N + 1) + i]);
+      const nx = axialX + (diagonalX - axialX) * smooth;
+      const nz = axialZ + (diagonalZ - axialZ) * smooth, ny = 2 * cell;
       const inv = 1 / Math.hypot(nx, ny, nz);
       nrm[k3] = nx * inv; nrm[k3 + 1] = ny * inv; nrm[k3 + 2] = nz * inv;
       const slope = clamp(1 - ny * inv, 0, 1), k4 = (j * (N + 1) + i) * 4;
-      surf[k4 + 1] = clamp(slope * 1.7 + (surf[k4 + 1] - 0.55) * 0.55, 0, 1);
+      // Let seeded lithology govern exposure instead of painting every equal-
+      // angle cut as one uniform rock strip. Flat meadow stays predominantly
+      // turf; shore sediment masks bedrock without changing the water field.
+      const lithology = surf[k4 + 1];
+      const natural = slope * (1.05 + 1.35 * lithology)
+        + smoothstep(0.5, 0.82, lithology) * 0.12;
+      // Graded cut and fill banks are soiled and grassed: only a face steeper
+      // than ~45 degrees shows bedrock. Deep cuttings otherwise turned whole
+      // hillsides beside the road into one flat grey band.
+      const graded = smoothstep(0.27, 0.40, slope) * (0.75 + 0.5 * lithology);
+      const exposure = lerp(natural, graded, worked[j * (N + 1) + i]);
+      surf[k4 + 1] = clamp(exposure * (1 - surf[k4 + 2] * 0.65), 0, 1);
     }
     if ((j & 3) === 3) yield;
   }

@@ -42,7 +42,7 @@ try {
       });
       const actualPoint = (mesh, index, point = { x: 0, y: 0, z: 0 }) =>
         transform(mesh.matrixWorld.elements, 0, transform(mesh.instanceMatrix.array, index * 16, point));
-      const groups = { grass: [], shrub: [], tree: [], flower: [] }, bladeOrigins = [];
+      const groups = { grass: [], pasture: [], shrub: [], tree: [], flower: [] }, bladeOrigins = [];
       for (const entry of __app.veg.tiles.values()) if (entry.groundReady) {
         const records = new Map(entry.records.map(record => [record.id, record]));
         for (const mesh of entry.meshes) {
@@ -66,7 +66,7 @@ try {
               for (let vertex = 0; vertex < roots.count; vertex++) if (params.getX(vertex) === 0) {
                 const root = actualPoint(mesh, index, { x: roots.getX(vertex), y: roots.getY(vertex), z: roots.getZ(vertex) });
                 const surface = groundAt(root.x, root.z);
-                if (surface) bladeOrigins.push({ id, ...root, delta: root.y - surface.y, height: record.height,
+                if (surface) bladeOrigins.push({ id, kind, ...root, delta: root.y - surface.y, height: record.height,
                   level: surface.level, cell: surface.cell, distance });
                 vertex++;
               }

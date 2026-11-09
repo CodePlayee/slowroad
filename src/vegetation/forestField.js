@@ -3,6 +3,7 @@ import { loadFoliageAssets } from './foliageAssets.js';
 import { TERRAIN } from '../terrain/params.js';
 import { farRidgeShape, farRidgeEnvelope, farRidgeOffset, farRidgeGlsl } from '../terrain/farRidge.js';
 import { TREE_SPECIES, isEvergreenSpecies } from './treeSpecies.js';
+import { shrubVariant } from './params.js';
 const IDENTITY_MATRIX = new THREE.Matrix4();
 
 export const FOREST_LOD = Object.freeze({ tree: { low: 160, high: 260, fadeStart: 1800, fadeEnd: 2000 },
@@ -10,6 +11,16 @@ export const FOREST_LOD = Object.freeze({ tree: { low: 160, high: 260, fadeStart
 export const MIDSTORY = Object.freeze({ minimumHeight: 2.5, maximumHeight: 4.5, maximumRadius: 2.75 });
 const smoothstep = (a, b, value) => { const t = Math.max(0, Math.min(1, (value - a) / (b - a))); return t * t * (3 - 2 * t); };
 const ridgePadding = distance => TERRAIN.farRidgeAmp * smoothstep(TERRAIN.farRidgeNear, TERRAIN.farRidgeFar, distance);
+
+// Reuse the tint slot for a world-fixed ecological signal: wet, closed stands
+// stay darker/cooler than dry edges, with only 15% individual variation. This is
+// render-only: rank, dimensions, population and near/far visibility are untouched.
+function foliageTintFactor(record) {
+  const cover = Math.max(0, Math.min(1, record.cover ?? 0.5));
+  const moisture = Math.max(0, Math.min(1, record.moisture ?? 0.5));
+  const variation = Math.max(0, Math.min(1, record.rank ?? 0.5));
+  return (1 - cover) * 0.55 + (1 - moisture) * 0.30 + variation * 0.15;
+}
 
 export function foliageCoverage(projectedHeight, kind = 'tree') {
   const { low, high } = FOREST_LOD[kind];
@@ -24,12 +35,19 @@ export function foliageRenderDimensions(record, template) {
   const cover = Math.max(0, Math.min(1, record.cover));
   if (record.rank < 0 || record.rank >= 0.30 + 0.06 * cover) return original;
   const size = Math.max(0, Math.min(1, record.height - 0.65));
-  const height = MIDSTORY.minimumHeight + (MIDSTORY.maximumHeight - MIDSTORY.minimumHeight) * size;
+  const moisture = Number.isFinite(record.moisture) ? Math.max(0, Math.min(1, record.moisture)) : 0.5;
+  // R13: dry, open edges retain a lower woody layer; moist, closed stands
+  // retain the existing upper envelope. Membership and root placement stay fixed.
+  const vigor = smoothstep(0, 1, cover * 0.55 + moisture * 0.45);
+  const fullHeight = MIDSTORY.minimumHeight + (MIDSTORY.maximumHeight - MIDSTORY.minimumHeight) * size;
+  const height = fullHeight * (0.66 + 0.34 * vigor);
   const shape = template.impostor.shape;
   // The baked radius covers every yaw/view, unlike half the axis-aligned width.
   const sway = 0.012 * Math.max(1, shape.top) ** 2;
   const safeWidth = MIDSTORY.maximumRadius * shape.width / (shape.radius + sway);
-  const width = Math.min(Math.max(record.width * 1.5, height * 0.70), safeWidth);
+  // Scale the pre-existing crown envelope, shared by geometry and impostors,
+  // rather than widening shorter plants or changing fern dimensions.
+  const width = Math.min(Math.max(record.width * 1.5, fullHeight * 0.70), safeWidth) * (0.76 + 0.24 * vigor);
   return { height, width, midstory: true };
 }
 
@@ -40,8 +58,10 @@ export function projectedPlantHeight(record, camera, pixelScale, template) {
   return height * pixelScale / Math.max(0.5, distance);
 }
 
+// Shrub keys and winter burial share worker-safe variant metadata.
 export function foliageTemplateKey(record, kind = 'tree') {
-  return kind === 'tree' ? (Object.hasOwn(TREE_SPECIES, record.species) ? record.species : 'oak') : `shrub-${Math.abs(record.variant || 0) % 2}`;
+  if (kind === 'tree') return Object.hasOwn(TREE_SPECIES, record.species) ? record.species : 'oak';
+  return shrubVariant(record).key;
 }
 
 // Mirrors terrain's visual-only far ridge lift, which is not in its height sampler.
@@ -183,16 +203,19 @@ export function makeFoliageMaterial(template, part, uniforms, atmo) {
   const far = part === 'impostor';
   const leaf = part === 'leaf';
   const evergreen = isEvergreenSpecies(template.species);
-  const autumn = template.growthForm === 'fern' ? [[0.37, 0.21, 0.045], [0.66, 0.48, 0.12]] : {
+  const autumn = template.growthForm === 'fern' ? [[0.37, 0.21, 0.045], [0.66, 0.48, 0.12]]
+    : template.growthForm === 'tussock' ? [[0.46, 0.33, 0.13], [0.74, 0.58, 0.30]] : {
     oak: [[0.36, 0.105, 0.024], [0.58, 0.29, 0.050]],
     birch: [[0.46, 0.22, 0.028], [0.68, 0.45, 0.065]],
     aspen: [[0.48, 0.27, 0.032], [0.72, 0.52, 0.085]],
     maple: [[0.38, 0.045, 0.020], [0.66, 0.22, 0.038]],
   }[template.species] || [[0.36, 0.105, 0.024], [0.58, 0.29, 0.050]];
+  const woody = template.kind === 'shrub' && (template.growthForm === 'woody' || template.growthForm === 'flowering');
   const material = new THREE.MeshStandardMaterial({ name: `field-${template.kind}-${template.name}-${part}`,
     map: far ? template.impostor.texture : template.maps[part], roughness: 0.96,
     color: new THREE.Color().setRGB(...(!far && template.tints?.[part] || [1, 1, 1])),
-    side: THREE.DoubleSide, alphaTest: leaf || far ? 0.32 : 0.01, alphaToCoverage: true,
+    vertexColors: !far && Boolean(template.parts[part]?.getAttribute?.('color')),
+    side: template.singleSided && !far ? THREE.FrontSide : THREE.DoubleSide, alphaTest: leaf || far ? 0.32 : 0.01, alphaToCoverage: true,
     transparent: false, depthWrite: true });
   const range = FOREST_LOD[template.kind];
   const lod = { value: new THREE.Vector4(range.low, range.high, range.fadeStart, range.fadeEnd) };
@@ -242,7 +265,7 @@ export function makeFoliageMaterial(template, part, uniforms, atmo) {
       vFoliageCoverage = ${far ? 'min(1.0, (1.0 - foliageBlend) * 2.0)' : 'min(1.0, foliageBlend * 2.0)'};
       vFoliageCoverage *= 1.0 - smoothstep(uFoliageLod.z, uFoliageLod.w, foliageDistance);
       vFoliageView = mod(foliageAngle / 6.28318530718 + 1.0, 1.0) * 8.0;
-      vFoliageTint = 0.94 + iFoliage.w * 0.12;
+      vFoliageTint = 0.86 + iFoliage.w * 0.20;
       vFoliageGroundHeight = position.y * iFoliage.x;
       vFoliageCanopyHeight = clamp(position.y, 0.0, 1.0);
       // Crown-scale ellipsoid coordinates: the cards have no self-shadowing, so
@@ -324,20 +347,34 @@ export function makeFoliageMaterial(template, part, uniforms, atmo) {
       diffuseColor.rgb *= mix(0.66, 1.0, smoothstep(0.0, 0.85, vFoliageGroundHeight));
       ${leaf && !evergreen ? 'diffuseColor.a *= 1.0 - uFoliageBare;' : ''}
       ${leaf || far ? `${far && !evergreen ? 'if (uFoliageBare < 0.5) {' : ''}
-      ${evergreen ? 'diffuseColor.rgb *= vec3(0.96, 1.0, 0.97) * vFoliageTint;' : `
+      float foliageEcology = clamp((vFoliageTint - 0.86) / 0.20, 0.0, 1.0);
+      vec3 foliageEcologyColor = mix(vec3(0.94, 1.0, 1.02), vec3(1.03, 1.0, 0.94), foliageEcology);
+      ${evergreen ? 'diffuseColor.rgb *= vec3(0.96, 1.0, 0.97) * foliageEcologyColor * vFoliageTint;' : `
       float foliagePigmentMask = ${leaf ? '1.0' : 'smoothstep(0.0, 0.035, diffuseColor.g - max(diffuseColor.r, diffuseColor.b))'};
       float foliageLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
       // Pigment follows crown-scale leaf masses, not each texel's luminance, so
       // autumn crowns read as clustered colour patches instead of pixel noise.
       float foliageCluster = 0.5 + 0.5 * sin(vFoliageCluster.x * 3.7 + vFoliageCluster.z * 2.3 + vFoliageCluster.w * 1.9)
         * cos(vFoliageCluster.y * 4.1 - vFoliageCluster.z * 3.1 + vFoliageCluster.w * 2.7);
-      float foliageVariation = clamp(clamp((vFoliageTint - 0.94) / 0.12, 0.0, 1.0) * 0.50 + foliageCluster * 0.50, 0.0, 1.0);
+      float foliageVariation = clamp(foliageEcology * 0.50 + foliageCluster * 0.50, 0.0, 1.0);
       vec3 foliageAutumnColor = mix(vec3(${autumn[0].join(', ')}), vec3(${autumn[1].join(', ')}), foliageVariation)
         * mix(0.80, clamp(foliageLuma * 5.0, 0.18, 1.20), 0.45);
-      diffuseColor.rgb *= mix(vec3(1.0), uFoliageTint, foliagePigmentMask);
+      // Autumn keeps its authored species palette; snow and night/headlight
+      // treatment still run after this bounded summer pigment adjustment.
+      diffuseColor.rgb *= mix(vec3(1.0), uFoliageTint * mix(foliageEcologyColor, vec3(1.0), uFoliageAutumn), foliagePigmentMask);
       diffuseColor.rgb = mix(diffuseColor.rgb, foliageAutumnColor, uFoliageAutumn * foliagePigmentMask) * vFoliageTint;
       `}
-      diffuseColor.rgb *= mix(0.76, 1.04, smoothstep(0.18, 0.92, vFoliageCanopyHeight));
+      ${woody ? `diffuseColor.rgb *= mix(mix(0.76, 1.04, smoothstep(0.18, 0.92, vFoliageCanopyHeight)), mix(mix(0.76, 0.94, foliageEcology), 1.04, smoothstep(0.18, 0.92, vFoliageCanopyHeight)), (1.0 - max(uFoliageAutumn, uFoliageBare)) * (1.0 - uFoliageNight));` : 'diffuseColor.rgb *= mix(0.76, 1.04, smoothstep(0.18, 0.92, vFoliageCanopyHeight));'}
+      ${template.growthForm === 'flowering' ? `{
+        // Blossom: yellow (broom/gorse) or white (elder/may) per plant, gathered
+        // in patches over the sunlit outer crown; gone by autumn.
+        float bloomA = sin(vFoliageCluster.x * 13.1 + vFoliageCluster.w * 3.1) * cos(vFoliageCluster.y * 11.3 - vFoliageCluster.z * 9.7 + vFoliageCluster.w);
+        float bloomB = sin(vFoliageCluster.z * 17.9 - vFoliageCluster.x * 5.3 + vFoliageCluster.w * 1.7) * cos(vFoliageCluster.y * 19.1 + vFoliageCluster.w * 2.3);
+        float bloomOuter = smoothstep(0.50, 0.92, vFoliageCrownDepth) * smoothstep(0.20, 0.65, vFoliageCanopyHeight);
+        float bloom = smoothstep(0.05, 0.55, 0.65 * bloomA + 0.35 * bloomB) * bloomOuter * (1.0 - max(uFoliageAutumn, uFoliageBare));
+        vec3 bloomColor = fract(vFoliageCluster.w * 0.731) < 0.62 ? vec3(0.95, 0.76, 0.10) : vec3(0.93, 0.93, 0.86);
+        diffuseColor.rgb = mix(diffuseColor.rgb, bloomColor * mix(0.70, 1.05, clamp(foliageLuma * 4.0, 0.0, 1.0)), bloom * 0.9);
+      }` : ''}
       // Scotopic vision: moonlit foliage loses chroma and shifts cool. Headlit
       // foliage is photopic, so the lamp is shaded with the albedo before this shift.
       float foliageNightLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
@@ -379,7 +416,14 @@ export function makeFoliageMaterial(template, part, uniforms, atmo) {
       vec3 foliageSpotBase;
     `).replace('#include <lights_fragment_begin>', foliageLightsChunk(leaf || far ? 0.65 : 0.30))
       .replace('#include <aomap_fragment>', `#include <aomap_fragment>
-      float foliageSkyAO = mix(1.0, 0.42, foliageInterior) * mix(0.80, 1.0, smoothstep(-0.6, 0.5, normalize(vFoliageHull).y));
+      ${template.kind === 'tree' && (leaf || far) ? `
+      // R17: dry, open mature crowns admit slightly more downward sky light.
+      // Reuse R11 ecology; shrubs, snow, bare crowns and full night keep their AO.
+      float foliageSkyEcology = clamp((vFoliageTint - 0.86) / 0.20, 0.0, 1.0);
+      float foliageSkyRelief = (uFoliageSnow > 0.0 || uFoliageBare > 0.0) ? 0.0 : (1.0 - uFoliageNight);
+      float foliageSkyFloor = mix(0.80, 0.92, foliageSkyEcology * foliageSkyRelief);
+      ` : 'float foliageSkyFloor = 0.80;'}
+      float foliageSkyAO = mix(1.0, 0.42, foliageInterior) * mix(foliageSkyFloor, 1.0, smoothstep(-0.6, 0.5, normalize(vFoliageHull).y));
       float foliageHullLight = smoothstep(-0.40, 0.60, dot(normalize(vFoliageHull), uFoliageLightDir));
       reflectedLight.directDiffuse *= mix(1.0, foliageHullLight * (1.0 - 0.65 * foliageInterior), ${leaf || far ? '0.65' : '0.30'});
       reflectedLight.indirectDiffuse *= foliageSkyAO * mix(1.0, 0.55, uFoliageNight);
@@ -395,7 +439,7 @@ export function makeFoliageMaterial(template, part, uniforms, atmo) {
       #include <opaque_fragment>
     `);
   };
-  material.customProgramCacheKey = () => `forest-field-crown-light-v7-${template.kind}-${template.species}-${template.growthForm || 'woody'}-${part}`;
+  material.customProgramCacheKey = () => `forest-field-crown-light-v9-${template.kind}-${template.species}-${template.growthForm || 'woody'}-${part}`;
   try { atmo.register(material); }
   catch (error) { material.dispose(); throw error; }
   return material;
@@ -479,7 +523,7 @@ export class ForestField {
           scale.set(widthScale, height, widthScale);
           rotation.setFromAxisAngle(axis, record.yaw);
           matrix.compose(position, rotation, scale).toArray(matrices, i * 16);
-          foliage.set([height, record.yaw, record.phase || 0, record.rank ?? 0.5], i * 4);
+          foliage.set([height, record.yaw, record.phase || 0, foliageTintFactor(record)], i * 4);
         }
         const sphere = bounds.getBoundingSphere(new THREE.Sphere());
         const range = FOREST_LOD[kind];
@@ -512,6 +556,8 @@ export class ForestField {
           };
           mesh.userData.batchVisible = (camera) => {
             if (part === 'leaf' && !isEvergreenSpecies(template.species) && this.uniforms.uFoliageBare.value >= 1) return false;
+            // Ferns and tussocks die back under the snowpack.
+            if (template.winterBuried && this.uniforms.uFoliageSnow.value > 0) return false;
             const view = visibility.update(camera, this.pixelScale);
             // Ridge lift changes only y; leave a margin around floating-point cutoffs.
             if (view.horizontalDistance > range.fadeEnd + 1 + 1e-8) return false;

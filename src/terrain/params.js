@@ -105,8 +105,8 @@ export const TERRAIN = {
   // From there the terrain draws a bare dirt/gravel rim out to roadScuffInner
   // (centreline distance, ±0.6 m world-space raggedness), then turf roots in
   // tufts and is fully established by roadScuffOuter.
-  roadScuffInner: 4.0,
-  roadScuffOuter: 5.2,
+  roadScuffInner: 4.35,
+  roadScuffOuter: 5.7,
   roadContactDarken: 0.19,
   terrainLayerStrength: 0.58,
 
