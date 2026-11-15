@@ -1100,11 +1100,10 @@ function vegMaterial(map, alphaTest, sway, uvSelect) {
           diffuseColor.a *= 1.0 - smoothstep( limit - edgeAa, limit + edgeAa, edge );
         }
         #endif
-        // Root tinting uses the same CC0 ground photographs as the terrain. A
-        // shallow world-space sample breaks up repeated clumps while retaining
-        // the authored blade/canopy colour higher up the card. Woody foliage
-        // receives forest-floor litter; grass receives leafy-grass through the
-        // material-specific uniform binding above. Bark and flowers stay intact.
+        // Root tinting uses the forest-floor CC0 ground photograph. A shallow
+        // world-space sample breaks up repeated clumps while retaining the
+        // authored blade/canopy colour higher up the card. Bark and flowers
+        // stay intact.
         if ( uGroundReady > 0.5 && vVegTintable > 0.5 && vVegHeight < 0.56 ) {
           vec3 groundSample = texture2D( uGroundDetail, vVegWorld.xz * 0.16 ).rgb;
           float root = 1.0 - smoothstep( 0.035, 0.46, vVegHeight );
@@ -1191,9 +1190,8 @@ export class Vegetation {
       this.rebuildAll();
     }) : Promise.resolve();
 
-    // Reuse both repository CC0 ground assets for subtle root-level blends.
-    // Grass inherits the leafy surface while woody cards use the forest-floor
-    // litter texture, so every layer settles into the same continuous ground
+    // Card and impostor foliage share the CC0 forest-floor litter for subtle
+    // root-level blends, so every layer settles into a continuous ground
     // material without adding geometry or changing residency.
     const detailLoader = new THREE.TextureLoader();
     this.assetError = null;

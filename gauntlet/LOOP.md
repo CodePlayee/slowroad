@@ -10,12 +10,12 @@ The lead agent orchestrates. Nothing is trusted unless it is on disk.
 `gauntlet/COMPARISON_PROTOCOL.md` governs blinding and the current acceptance gate.
 
 ## Builder round contract
-1. Read `gauntlet/RULES.md`, `gauntlet/PLAN.md`, `gauntlet/RIG.md` (if present).
+1. Read `gauntlet/RULES.md` and `gauntlet/PLAN.md` (its "Shared rig contract" is the capture API).
 2. Read the previous critic verdict for your piece, if any:
    `gauntlet/verdicts/<piece>_r<N-1>.json` — its `gap` field is your assignment.
 3. Study the bar with your own eyes: the relevant images in `refs/slowroads/official/`
    (and `refs/bridges/` for the bridge piece). Read `refs/slowroads/OBSERVATIONS.md` if it exists.
-4. Change ONLY the source files that own your piece (see RIG.md's ownership table).
+4. Change ONLY the source files that own your piece.
    Never touch another piece's files. Never edit `gauntlet/shoot.mjs`, `browser.mjs`,
    `log.mjs`, `progress.html`, `state.json`.
 5. Implement the concrete gap. Run technical build, asset, geometry and runtime

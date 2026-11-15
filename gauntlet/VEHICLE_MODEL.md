@@ -8,9 +8,10 @@ The active car is the user-provided compact 2025 Tesla Model Y AWD:
 
 The GLB is copied byte-for-byte, with its original paint, glass, interior,
 textures and geometry. It has 22 primitives, 16 embedded images, Draco geometry
-compression, WebP textures and no animation clips. Draco WASM and its wrapper
-are served locally from `public/draco/`, copied from the installed Three.js
-glTF decoder distribution. No CDN or neighboring project's server is needed.
+compression, WebP textures and no animation clips. `src/vehicle/asset.js` decodes
+it with the glTF Draco decoder bundled with the installed Three.js
+(`DRACO_GLTF_CONFIG`), which Vite emits with the app. No CDN or neighboring
+project's server is needed.
 
 ## Scene Adaptation
 

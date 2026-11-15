@@ -48,15 +48,21 @@
 ## Shared rig contract (all agents rely on this)
 - Dev server: `npm run dev` on port **5188**.
 - Deterministic scene via URL params, e.g.
-  `http://localhost:5188/?seed=12&t=17.5&season=autumn&weather=clear&cam=chase&x=...&z=...`
-- `window.__rig` on the page exposes:
-  - `await __rig.ready()` resolves when terrain/veg around the camera are fully resident
-  - `__rig.set({seed,t,season,weather,cam,dist})`
-  - `__rig.teleport(km)` — move car along the road to km marker
+  `http://localhost:5188/?seed=12&t=17.5&season=autumn&weather=clear&cam=chase&km=3.2`
+- `window.__rig` (`src/rig/rig.js`, `version: 1`) on the page exposes:
+  - `await __rig.ready({timeoutMs, frames})` resolves when terrain/road/bridges/vegetation
+    around the camera are fully resident, then renders `frames` more; rejects on timeout
+  - `__rig.pause()` / `__rig.resume()`, and `__rig.snap()`: re-place the car at its requested
+    km, snap the camera and zero the water/cloud clocks, so equal queries give equal frames
+  - `await __rig.set({seed,t,season,weather,cam,dist,km})`, `await __rig.teleport(km)`
   - `__rig.hideUI()` / `__rig.showUI()`
-  - `__rig.stats()` -> `{fps, drawCalls, triangles, km}`
-  - `__rig.findBridge()` -> nearest bridge km, for bridge shots
-- Screenshots: `node gauntlet/shoot.mjs <outfile> <query-string>` at 1600x900.
+  - `__rig.stats()` -> `{fps, drawCalls, triangles, programs, km, pos, heading, cam, seed, t,
+    season, weather, residency}`
+  - `await __rig.findBridge(km)` / `findWater(km)` / `findVista(km)` -> next km or `null`
+  - `__rig.error()` -> first fatal/asset error or `null`
+- Screenshots: `node gauntlet/shoot.mjs <outfile> <query-string>` at 1920x1080 (boots
+  paused; capture order is pause, snap, ready, hideUI, snap, ready). Without a GPU use
+  `gauntlet/cpu-capture.mjs`.
 
 ## Chrome instances (avoid collisions)
 Read `gauntlet/RULES.md` FIRST. Headless only, via `gauntlet/browser.mjs`. Never pkill.

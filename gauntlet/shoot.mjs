@@ -108,7 +108,7 @@ for (const job of jobs) {
     await page.setViewportSize({ width, height });
     // Boot PAUSED unless --live: the autodrive advances the car (and the water /
     // cloud clocks) during the frames between boot and rig.pause(), which made two
-    // captures of the same query differ on ~46% of pixels. See gauntlet/RIG.md.
+    // captures of the same query differ on ~46% of pixels.
     let q = plantVariantQuery(job.query);
     if (!live && !/(^|&)paused=/.test(q)) q += (q ? '&' : '') + 'paused=1';
     const url = `${process.env.GAUNTLET_URL || 'http://localhost:5188'}/?${q}`;

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { DRACOLoader, DRACO_GLTF_CONFIG } from 'three/addons/loaders/DRACOLoader.js';
 import { VEHICLE as V } from './params.js';
 import { VehicleEnvironment } from './environment.js';
 import { rigModelYWheels } from './wheels.js';
@@ -20,7 +20,8 @@ const INTERIOR_AO = 0.5;
 const COCKPIT_EYE = new THREE.Vector3(0.379, 1.30, -0.10);
 
 export async function loadVehicleAsset(vehicle) {
-  const draco = new DRACOLoader().setDecoderPath('/draco/').setDecoderConfig({ type: 'wasm' });
+  // The glTF decoder build that ships with three; Vite emits it with the app.
+  const draco = new DRACOLoader().setDecoderPath(DRACO_GLTF_CONFIG);
   draco.setWorkerLimit(1);
   try {
     const gltf = await new GLTFLoader().setDRACOLoader(draco).loadAsync('/models/tesla-model-y-2025-awd-compact.glb');

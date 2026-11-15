@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { createRequire, registerHooks } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import * as THREE from 'three';
 const src = new URL('../src/', import.meta.url).href;
@@ -14,15 +16,20 @@ const { Vehicle } = await import('../src/vehicle/vehicle.js');
 const { VEHICLE: V } = await import('../src/vehicle/params.js');
 const { CAMERAS } = await import('../src/camera/params.js');
 
-// Minimal GLB reader: decodes the Draco primitives with the served decoder and
-// rebuilds the node hierarchy as plain meshes carrying the authored material names.
+// Minimal GLB reader: decodes the Draco primitives with three's glTF decoder (the
+// build the app ships) and rebuilds the node hierarchy as plain meshes carrying the
+// authored material names.
 async function loadCompactModelY() {
   const file = readFileSync(new URL('../public/models/tesla-model-y-2025-awd-compact.glb', import.meta.url));
   const jsonLength = file.readUInt32LE(12);
   const json = JSON.parse(file.toString('utf8', 20, 20 + jsonLength));
   const bin = 20 + jsonLength + 8;
-  const DracoDecoderModule = createRequire(import.meta.url)('../public/draco/draco_wasm_wrapper.js');
-  const wasmBinary = readFileSync(new URL('../public/draco/draco_decoder.wasm', import.meta.url));
+  // three is an ES-module package, so its classic-script wrapper cannot be
+  // require()d; evaluate it the way DRACOLoader's worker does.
+  const wrapper = fileURLToPath(import.meta.resolve('three/addons/libs/draco/gltf/draco_wasm_wrapper.js'));
+  const DracoDecoderModule = new Function('require', '__dirname', `${readFileSync(wrapper, 'utf8')}\nreturn DracoDecoderModule;`)(
+    createRequire(wrapper), path.dirname(wrapper));
+  const wasmBinary = readFileSync(new URL(import.meta.resolve('three/addons/libs/draco/gltf/draco_decoder.wasm')));
   const { draco } = await new Promise(resolve => DracoDecoderModule({ wasmBinary }).then(module => resolve({ draco: module })));
   const materials = json.materials.map(spec => Object.assign(new THREE.MeshStandardMaterial({
     transparent: spec.alphaMode === 'BLEND', metalness: spec.pbrMetallicRoughness?.metallicFactor ?? 1,
@@ -201,7 +208,7 @@ test('real Model Y rear-view mirror: the glass reflects the rear window, not the
   vehicle.setCockpit(false);
 });
 
-test('the supplied compact GLB is unchanged and its Draco decoder is served locally', () => {
+test('the supplied compact GLB is unchanged', () => {
   const file = readFileSync(new URL('../public/models/tesla-model-y-2025-awd-compact.glb', import.meta.url));
   assert.equal(createHash('sha256').update(file).digest('hex'), 'b3301a2b4b4935c9323d1a430461cfca85096b674b7d8535c5dd6e3693492c90');
   const json = JSON.parse(file.toString('utf8', 20, 20 + file.readUInt32LE(12)));
@@ -210,9 +217,6 @@ test('the supplied compact GLB is unchanged and its Draco decoder is served loca
   assert.equal(json.images.length, 16);
   assert.equal(json.animations?.length || 0, 0);
   assert.equal(json.meshes.reduce((sum, mesh) => sum + mesh.primitives.length, 0), 22);
-  const wasm = readFileSync(new URL('../public/draco/draco_decoder.wasm', import.meta.url));
-  assert.deepEqual([...wasm.subarray(0, 4)], [0, 97, 115, 109]);
-  assert.ok(readFileSync(new URL('../public/draco/draco_wasm_wrapper.js', import.meta.url)).length > 10000);
 });
 
 test('Model Y keeps its materials and interior, excludes the shadow from scale, and grounds its tyres', () => {

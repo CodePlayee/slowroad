@@ -1,6 +1,6 @@
 // src/rig/rig.js — window.__rig: the deterministic capture contract every critic and
 // builder agent depends on. DO NOT change the shape of this API without updating
-// gauntlet/RIG.md and gauntlet/shoot.mjs.
+// the "Shared rig contract" in gauntlet/PLAN.md and gauntlet/shoot.mjs.
 
 export function installRig(app) {
   const rig = {
