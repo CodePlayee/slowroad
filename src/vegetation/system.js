@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { GrassField } from './grassField.js';
-import { ForestField } from './forestField.js';
+import { GrassField, GRASS_REVEAL } from './grassField.js';
+import { ForestField, FOREST_LOD } from './forestField.js';
 import { FlowerField } from './flowerField.js';
 import { POPULATION, generatePopulation } from './population.js';
 import { PASTURE } from './pasture.js';
-import { PopulationPool } from './populationPool.js';
+import { PopulationPool, populationWorkerCount } from './populationPool.js';
 import { GRASS_COVERAGE } from './grassCoverage.js';
 import { groupFoliage } from './cullingGroup.js';
 import { TERRAIN } from '../terrain/params.js';
@@ -21,6 +21,16 @@ const PASTURE_REACH = GRASS_COVERAGE.viewEnd + POPULATION.grass.tile * Math.SQRT
 const PASTURE_GROUND = TERRAIN.chunkSize * TERRAIN.ringRadius - PADDING.pasture;
 const CACHE_SECONDS = 10;
 const CACHE_CELLS = 760;
+// Eye distance at which each ground-cover layer starts to show: the grass view
+// fade end and the shrub distance fade end.
+const VIEW_RANGE = { grass: GRASS_COVERAGE.viewEnd, pasture: GRASS_COVERAGE.viewEnd, shrub: FOREST_LOD.shrub.fadeEnd };
+const COVER_KINDS = ['grass', 'pasture', 'shrub'];
+// Ground cover is ranked by when the eye reaches it: tiles inside a layer's
+// range by eye distance, tiles ahead by the driving distance until the eye,
+// carried along the route, comes within range. Tiles the eye reaches within
+// `seconds` (at no less than `minimumSpeed`) are planned even beyond the
+// rings, wherever the terrain already plans their supporting ground.
+export const STREAM_LEAD = Object.freeze({ seconds: 5, step: 16, minimumSpeed: 10 });
 
 export class VegetationSystem {
   constructor(world, atmo, scheduler, terrain = null) {
@@ -34,7 +44,12 @@ export class VegetationSystem {
     this.cache = new Map();
     this.cpuReady = new Map();
     this._builds = new Map();
-    this.pool = new PopulationPool(); this.pool.reset(world);
+    // Roadside grass is by far the most expensive population per tile and must
+    // keep pace with the car, so it gets several workers. Grass and pasture are
+    // urgent (negative priority); shrubs and trees never occupy the last idle worker.
+    this.pool = new PopulationPool({ backgroundPriority: 0,
+      size: populationWorkerCount(typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined) });
+    this.pool.reset(world);
     this.grass = new GrassField(atmo);
     this.forest = new ForestField(atmo, atmo.renderer);
     this.flowers = new FlowerField(atmo);
@@ -43,6 +58,8 @@ export class VegetationSystem {
     this._signature = '';
     this._coverageRevision = -1;
     this._clock = performance.now(); this.time = 0;
+    // Seconds of presented driving; tiles revealed meanwhile fill in against it.
+    this._revealClock = 0; this._revealEnd = 0; this._fadeReveals = false;
     this._publishFrame = -1; this._published = 0;
     this.required = 0; this.fallbacks = 0;
     this.assetReady = false; this.assetError = null;
@@ -63,26 +80,89 @@ export class VegetationSystem {
     return changed;
   }
 
-  _job(kind, i, j, x, z) {
+  _job(kind, i, j, x, z, arrival) {
     const C = LATTICE[kind].tile, pad = PADDING[kind];
-    const d = Math.hypot((i + 0.5) * C - x, (j + 0.5) * C - z);
-    // Prepare the entire grass guard before distant woodland work can occupy
-    // the shared population worker. Waiting until viewEnd defeats prefetching.
-    // Pasture tiles are cheap (a coarse ecology grid) and follow the grass.
-    const priority = kind === 'grass' ? -2000 + d * 3 : kind === 'pasture' ? -1000 + d * 3
-      : kind === 'shrub' ? 800 + d * 5 : (d < 600 ? 0 : 3000) + d * 3;
+    const cx = (i + 0.5) * C, cz = (j + 0.5) * C, d = Math.hypot(cx - x, cz - z);
+    const view = this._grassView, range = VIEW_RANGE[kind];
+    let priority;
+    if (view && range) {
+      // Ground cover is generated in the order the eye reaches it, ahead of
+      // every tree job: inside a layer's range by eye distance, beyond it by the
+      // route distance until the eye comes within range. Tiles wholly behind
+      // the eye only matter if the view turns, so they follow the visible band.
+      // Ranges normalise the layers: a shrub tile at 220 m ranks with grass at 160 m.
+      const gap = Math.hypot(Math.max(0, Math.abs(cx - view.x) - C / 2), Math.max(0, Math.abs(cz - view.z) - C / 2));
+      const behind = (cx - view.x) * view.dx + (cz - view.z) * view.dz + C * Math.SQRT1_2 < 0;
+      const reach = gap <= range ? gap : Math.min(gap, range + (arrival ?? this._arrival(i, j, C, range)));
+      priority = -3000 + 480 * (reach / range + (behind ? 1 : 0));
+    } else {
+      // Without a camera, prepare the grass guard before distant woodland work.
+      priority = kind === 'grass' ? -2000 + d * 3 : kind === 'pasture' ? -1000 + d * 3
+        : kind === 'shrub' ? 800 + d * 5 : (d < 600 ? 0 : 3000) + d * 3;
+    }
     return { key: `veg:${this.version}:${kind}:${i}:${j}`, kind, i, j, d, priority,
       groundBounds: [i * C - pad, j * C - pad, (i + 1) * C + pad, (j + 1) * C + pad] };
   }
 
+  /**
+   * Eye positions over the next STREAM_LEAD.seconds of driving: the current
+   * eye carried along the route, its offset from the route turning with it.
+   */
+  _leadEyes() {
+    const view = this._grassView, travel = this._travel, route = this.world?.route;
+    if (!view || !travel || typeof route?.at !== 'function') return [];
+    const here = route.at(travel.s, {}), heading = Math.atan2(here.tz, here.tx);
+    const ox = view.x - here.x, oz = view.z - here.z;
+    const distance = Math.max(travel.speed, STREAM_LEAD.minimumSpeed) * STREAM_LEAD.seconds;
+    const eyes = [], point = {};
+    for (let d = STREAM_LEAD.step; d <= distance + 1e-6; d += STREAM_LEAD.step) {
+      route.at(travel.s + d, point);
+      const turn = Math.atan2(point.tz, point.tx) - heading, c = Math.cos(turn), s = Math.sin(turn);
+      eyes.push({ x: point.x + ox * c - oz * s, z: point.z + ox * s + oz * c, d });
+    }
+    return eyes;
+  }
+
+  /** Metres of driving until a lead eye is within `range` of the tile (Infinity beyond the lead). */
+  _arrival(i, j, C, range) {
+    for (const eye of this._eyes || []) {
+      const gap = Math.hypot(Math.max(0, Math.abs((i + 0.5) * C - eye.x) - C / 2), Math.max(0, Math.abs((j + 0.5) * C - eye.z) - C / 2));
+      if (gap <= range) return eye.d;
+    }
+    return Infinity;
+  }
+
+  /** Lead tiles stay within ground the terrain already plans, so they always publish. */
+  _groundPlanned(kind, i, j) {
+    if (!this.terrain) return true;
+    const C = LATTICE[kind].tile, pad = PADDING[kind];
+    return this.terrain.plansBounds?.(i * C - pad, j * C - pad, (i + 1) * C + pad, (j + 1) * C + pad, GROUND_LEVEL[kind]) ?? false;
+  }
+
+  _inRoadBand(i, j, C) {
+    if (!this.world?.route?.nearest) return true;
+    // A circumscribed tile bound cannot reject any root in the road band.
+    const reach = GRASS_COVERAGE.roadEnd + C * Math.SQRT1_2;
+    const road = this.world.route.nearest((i + 0.5) * C, (j + 0.5) * C, reach);
+    return Boolean(road) && road.dist <= reach;
+  }
+
   _plan(x, z) {
+    // Replan as the car advances a grass tile or its lead grows or shrinks by a step.
+    const lead = this._travel && Math.floor(Math.max(this._travel.speed, STREAM_LEAD.minimumSpeed) * STREAM_LEAD.seconds / STREAM_LEAD.step);
+    const travel = this._travel && this._grassView ? `;${Math.floor(this._travel.s / POPULATION.grass.tile)},${lead}` : '';
+    const terrainPlan = this.terrain?.requests ?? null;
     const signature = KINDS.map(kind => {
       const C = LATTICE[kind].tile;
       return `${Math.floor(x / C)},${Math.floor(z / C)}`;
-    }).join(';') + (this._grassView ? `;${Math.floor(Math.atan2(this._grassView.dz, this._grassView.dx) / (Math.PI / 12))}` : '');
-    if (signature === this._signature) return false;
+    }).join(';') + (this._grassView ? `;${Math.floor(Math.atan2(this._grassView.dz, this._grassView.dx) / (Math.PI / 12))}` : '') + travel;
+    if (signature === this._signature && terrainPlan === this._terrainPlan) return false;
     this._signature = signature;
-    const jobs = [];
+    this._terrainPlan = terrainPlan;
+    this._eyes = this._leadEyes();
+    const jobs = [], planned = new Set();
+    // Tile index pair as one number; |j| stays far below 2^20 on any route.
+    const tileId = (kind, i, j) => (KINDS.indexOf(kind) * 4194304 + i) * 2097152 + j;
     for (const kind of KINDS) {
       // Pasture coverage is defined by distance from the camera; without one
       // there is no range to fill.
@@ -104,13 +184,27 @@ export class VegetationSystem {
           if (Math.hypot(gapX, gapZ) > PASTURE_REACH) continue;
           if (Math.max(Math.abs((i + 0.5) * C - x), Math.abs((j + 0.5) * C - z)) + C / 2 > PASTURE_GROUND) continue;
         }
-        if (kind === 'grass' && this.world?.route?.nearest) {
-          // A circumscribed tile bound cannot reject any root in the road band.
-          const reach = GRASS_COVERAGE.roadEnd + C * Math.SQRT1_2;
-          const road = this.world.route.nearest((i + 0.5) * C, (j + 0.5) * C, reach);
-          if (!road || road.dist > reach) continue;
-        }
+        if (kind === 'grass' && !this._inRoadBand(i, j, C)) continue;
         jobs.push(this._job(kind, i, j, x, z));
+        planned.add(tileId(kind, i, j));
+      }
+    }
+    // Lead: cover the eye will reach soon, wherever its ground is planned.
+    for (const kind of this._eyes.length ? COVER_KINDS : []) {
+      const C = LATTICE[kind].tile, range = VIEW_RANGE[kind];
+      let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+      for (const eye of this._eyes) {
+        x0 = Math.min(x0, eye.x); z0 = Math.min(z0, eye.z); x1 = Math.max(x1, eye.x); z1 = Math.max(z1, eye.z);
+      }
+      for (let j = Math.floor((z0 - range) / C); j <= Math.floor((z1 + range) / C); j++) {
+        for (let i = Math.floor((x0 - range) / C); i <= Math.floor((x1 + range) / C); i++) {
+          if (planned.has(tileId(kind, i, j))) continue;
+          const arrival = this._arrival(i, j, C, range);
+          if (arrival === Infinity) continue;
+          if (kind === 'grass' && !this._inRoadBand(i, j, C)) continue;
+          if (!this._groundPlanned(kind, i, j)) continue;
+          jobs.push(this._job(kind, i, j, x, z, arrival));
+        }
       }
     }
     jobs.sort((a, b) => a.priority - b.priority);
@@ -119,6 +213,7 @@ export class VegetationSystem {
     const now = performance.now();
     for (const [key, entry] of this.tiles) if (!this._streamWant.has(key)) {
       for (const mesh of entry.meshes) mesh.visible = false;
+      entry.shown = false;
       if (entry.renderGroup) entry.renderGroup.visible = false;
       this.tiles.delete(key); entry.lastUsed = now; this.cache.set(key, entry);
       this.terrain?.plantContactChanged?.(entry, true, { reason: 'stream-eviction', focus: { x, z } });
@@ -146,9 +241,31 @@ export class VegetationSystem {
     for (const mesh of entry.meshes) {
       mesh.visible = entry.groundReady && !(mesh.userData.field === 'flowers' && this.seasonName === 'winter');
     }
+    if (entry.groundReady && !entry.shown && this._fadeReveals) this._fadeIn(entry);
+    entry.shown = entry.groundReady;
     if (entry.groundReady !== wasReady && this.tiles.has(entry.job.key)) {
       this.terrain?.plantContactChanged?.(entry, !entry.groundReady);
     }
+  }
+
+  /** A ground-cover tile appearing in a presented, moving scene fills in instead of popping. */
+  _fadeIn(entry) {
+    if (!COVER_KINDS.includes(entry.job.kind)) return;
+    for (const mesh of entry.meshes) {
+      const field = mesh.userData.field === 'grass' ? this.grass : mesh.userData.field === 'flowers' ? this.flowers : this.forest;
+      field?.reveal(mesh, this._revealClock);
+    }
+    this._revealEnd = this._revealClock + GRASS_REVEAL.seconds;
+  }
+
+  /** Fades advance only in presented, moving time; any hold completes them, keeping captures exact. */
+  _advanceReveal(app, dt) {
+    if (!app) return;
+    this._fadeReveals = Boolean(app.presented) && !app.paused && !app.forceDrain && !app.loading && !app._backgrounded;
+    this._revealClock = this._fadeReveals ? this._revealClock + dt : Math.max(this._revealClock, this._revealEnd);
+    this.grass.setRevealClock(this._revealClock);
+    this.flowers.setRevealClock(this._revealClock);
+    this.forest.setRevealClock(this._revealClock);
   }
 
   _fallback(job) {
@@ -232,6 +349,7 @@ export class VegetationSystem {
     const dt = Math.min(0.05, (now - this._clock) / 1000); this._clock = now;
     if (app?.paused || app?.forceDrain) this.time = 0;
     else if (!app?._backgrounded && !app?.loading) this.time += dt;
+    this._advanceReveal(app, dt);
     const camera = app?.cameras?.camera;
     if (camera) {
       const direction = this._grassDirection ||= new THREE.Vector3();
@@ -243,6 +361,9 @@ export class VegetationSystem {
           dx: direction.x / length, dz: direction.z / length });
       } else this._grassView = null;
     } else this._grassView = null;
+    const vehicle = app?.vehicle;
+    this._travel = vehicle && Number.isFinite(vehicle.s)
+      ? { s: vehicle.s, speed: Number.isFinite(vehicle.speed) ? Math.abs(vehicle.speed) : 0 } : null;
     // Streaming is centered between car and camera, while grass fades from the
     // camera. Include that offset and the whole cell before revealing a scene.
     this._grassReadyRadius = GRASS_COVERAGE.viewEnd + POPULATION.grass.tile * Math.SQRT1_2
@@ -252,12 +373,9 @@ export class VegetationSystem {
       this.grass.update(camera, this.time, this.seasonName, height);
       this.forest.update(camera, this.time, this.seasonName, height);
     }
-    const moved = this._plan(x, z), revision = this.terrain?.coverageRevision ?? 0;
+    const moved = this._plan(x, z);
     this._cancelBuilds(key => !this.scheduler.has(key));
-    if (moved || revision !== this._coverageRevision) {
-      for (const entry of this.tiles.values()) this._visibility(entry);
-      this._coverageRevision = revision;
-    }
+    this.refreshVisibility(moved);
     const frame = app?.frameNo ?? now;
     if (frame !== this._publishFrame) { this._publishFrame = frame; this._published = 0; }
     for (const job of this._streamJobs) {
@@ -291,6 +409,18 @@ export class VegetationSystem {
       this._dispose(entry); this.cache.delete(key); released++;
     }
     this.terrain?.updatePlantContact?.(this.tiles, x, z);
+  }
+
+  /**
+   * Re-test ground support when terrain coverage changed (or `force`), e.g.
+   * once the frame's scheduled terrain work has run, so grass appears with its
+   * ground. Planning, worker polling and publication run once per frame in update().
+   */
+  refreshVisibility(force = false) {
+    const revision = this.terrain?.coverageRevision ?? 0;
+    if (!force && revision === this._coverageRevision) return;
+    for (const entry of this.tiles.values()) this._visibility(entry);
+    this._coverageRevision = revision;
   }
 
   get resident() { return this.tiles.size; }

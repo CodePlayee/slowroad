@@ -32,7 +32,7 @@ async function loadCompactModelY() {
   const wasmBinary = readFileSync(new URL(import.meta.resolve('three/addons/libs/draco/gltf/draco_decoder.wasm')));
   const { draco } = await new Promise(resolve => DracoDecoderModule({ wasmBinary }).then(module => resolve({ draco: module })));
   const materials = json.materials.map(spec => Object.assign(new THREE.MeshStandardMaterial({
-    transparent: spec.alphaMode === 'BLEND', metalness: spec.pbrMetallicRoughness?.metallicFactor ?? 1,
+    transparent: spec.alphaMode === 'BLEND', side: spec.doubleSided ? THREE.DoubleSide : THREE.FrontSide, metalness: spec.pbrMetallicRoughness?.metallicFactor ?? 1,
     roughness: spec.pbrMetallicRoughness?.roughnessFactor ?? 1 }), { name: spec.name }));
   for (const [i, spec] of json.materials.entries()) if (spec.occlusionTexture) materials[i].aoMap = new THREE.Texture();
   const decoder = new draco.Decoder();
@@ -122,16 +122,30 @@ function nearestCabinDepth(vehicle) {
 
 test('real Model Y: tail/head lamp triangles get emissive lamp materials, reflectors and badges do not', async () => {
   const vehicle = preparedModelY(await loadCompactModelY());
-  const byName = name => vehicle.asset.children.find(mesh => mesh.name === name);
-  const roleTriangles = (mesh) => Object.fromEntries(mesh.geometry.groups.map(group =>
-    [mesh.material[group.materialIndex].userData.lampRole || 'base', group.count / 3]));
-  assert.deepEqual(roleTriangles(byName('Trunk_Lamp_Glass')), { tail: 988 });
-  assert.deepEqual(roleTriangles(byName('Body_Lamp_Glass')), { head: 120 });
-  for (const side of ['L', 'R']) assert.deepEqual(roleTriangles(byName(`Body_Lamp_Glass_${side}`)), { base: 23, tail: 25 });
+  // Glass is drawn as BackSide + FrontSide meshes (one per lamp role); count
+  // each triangle once, from the front-facing (or single-sided) draws.
+  const roleTriangles = (name) => {
+    const roles = {};
+    for (const mesh of vehicle.asset.children.filter(child => child.name === name)) {
+      const groups = Array.isArray(mesh.material) ? mesh.geometry.groups
+        : [{ start: mesh.geometry.drawRange.start, count: Math.min(mesh.geometry.drawRange.count, mesh.geometry.index.count), materialIndex: 0 }];
+      for (const group of groups) {
+        const material = [mesh.material].flat()[group.materialIndex];
+        if (material.side === THREE.BackSide) continue;
+        const role = material.userData.lampRole || 'base';
+        roles[role] = (roles[role] || 0) + group.count / 3;
+      }
+    }
+    return roles;
+  };
+  assert.deepEqual(roleTriangles('Trunk_Lamp_Glass'), { tail: 988 });
+  assert.deepEqual(roleTriangles('Body_Lamp_Glass'), { head: 120 });
+  for (const side of ['L', 'R']) assert.deepEqual(roleTriangles(`Body_Lamp_Glass_${side}`), { base: 23, tail: 25 });
   // 102 rear light-bar/internals triangles (incl. the bar's centre badge), the
   // 70-triangle head strip; bumper reflectors (y < 0.6) stay unlit.
-  assert.deepEqual(roleTriangles(byName('Body_Lamp_Image')), { base: 240, tail: 102, head: 70 });
-  assert.equal(vehicle.lampMaterials.length, 4);
+  assert.deepEqual(roleTriangles('Body_Lamp_Image'), { base: 240, tail: 102, head: 70 });
+  // Light-bar head/tail plus the glass head/tail lens, each glass one as a back and a front copy.
+  assert.equal(vehicle.lampMaterials.length, 6);
   for (const material of vehicle.lampMaterials) {
     assert.equal(material.emissiveIntensity, 0);
     assert.ok(vehicle.assetMaterials.includes(material));
@@ -141,6 +155,32 @@ test('real Model Y: tail/head lamp triangles get emissive lamp materials, reflec
   assert.equal(cloth.metalness, 0);
   assert.equal(cloth.aoMapIntensity, 0.5);
   assert.equal(vehicle.assetMaterials.find(material => material.name === 'M_Ext_Paint').metalness, 0.93);
+});
+
+test('real Model Y glass: explicit BackSide/FrontSide meshes keep the two-pass draw order', async () => {
+  const vehicle = preparedModelY(await loadCompactModelY());
+  const glass = [];
+  vehicle.asset.traverse((mesh) => {
+    if (!mesh.isMesh) return;
+    for (const material of [mesh.material].flat()) {
+      // three re-resolves programs twice per draw for transparent DoubleSide materials.
+      assert.ok(!(material.transparent && material.side === THREE.DoubleSide), `${mesh.name} still two-pass`);
+      if (material.transparent && material.side === THREE.FrontSide) glass.push(mesh);
+    }
+  });
+  assert.ok(glass.length >= 12);
+  for (const front of glass) {
+    // Its back copy draws the same triangles from the same sort depth just before it.
+    const back = vehicle.asset.children.find(mesh => mesh.id === front.id - 1);
+    assert.equal(back.material.side, THREE.BackSide);
+    assert.equal(back.name, front.name);
+    assert.equal(back.geometry.boundingSphere, front.geometry.boundingSphere);
+    assert.deepEqual(back.geometry.drawRange, front.geometry.drawRange);
+    assert.equal(back.renderOrder, front.renderOrder);
+    assert.ok(back.matrix.equals(front.matrix));
+    assert.equal(back.material.name, front.material.name);
+    assert.ok(vehicle.assetMaterials.includes(back.material) && vehicle.assetMaterials.includes(front.material));
+  }
 });
 
 test('real Model Y cockpit: no visible cabin surface is cut by the camera near plane', async () => {

@@ -14,6 +14,8 @@ const { RoadMesh } = await import('../src/road/roadmesh.js');
 const { VEHICLE } = await import('../src/vehicle/params.js');
 const { createHeadlight, createTailSpill } = await import('../src/vehicle/lamps.js');
 const { Vehicle } = await import('../src/vehicle/vehicle.js');
+const { Suspension } = await import('../src/vehicle/suspension.js');
+const { Handling } = await import('../src/vehicle/handling.js');
 
 // three.js physical spot light: cookie (bilinear, via the spot's shadow
 // matrix) × cone smoothstep × distance attenuation × incidence cosine.
@@ -144,7 +146,9 @@ test('night lights: tail lamps glow red with a short red road spill; day turns t
   assert.ok(spill.distance > 0 && spill.distance <= 8 && spill.position.z < -VEHICLE.bodyLength / 2);
   const straight = { at: (s, q) => Object.assign(q, { x: s, y: 0, z: 0, tx: 1, tz: 0, grade: 0, curv: 0 }), kmToS: () => 0, clampS: s => s };
   const vehicle = Object.assign(Object.create(Vehicle.prototype), {
-    route: straight, atmo: { palette: { dayness: 0 } }, group: new THREE.Group(), pos: new THREE.Vector3(), _q: {},
+    route: straight, atmo: { palette: { dayness: 0 } }, group: new THREE.Group(), pos: new THREE.Vector3(), _q: {}, _qt: {}, _qa: {}, _qb: {},
+    suspension: new Suspension(VEHICLE.suspension, { track: VEHICLE.trackWidth, wheelbase: VEHICLE.wheelbase }),
+    handling: new Handling(VEHICLE.handling, { wheelbase: VEHICLE.wheelbase, laneOffset: VEHICLE.laneOffset }),
     speed: 20, s: 100, wheels: [], assetWheels: [], assetMaterials: [], lampMaterials: [tail, head],
     headlight: new THREE.SpotLight(), lampF: new THREE.MeshStandardMaterial(), lampR: new THREE.MeshStandardMaterial(), tailSpill: spill,
   });

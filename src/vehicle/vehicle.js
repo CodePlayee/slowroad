@@ -6,7 +6,9 @@ import { VEHICLE as V } from './params.js';
 import { crossSection } from '../world/world.js';
 import { clamp, lerp } from '../core/rng.js';
 import { loadVehicleAsset } from './asset.js';
-import { animateWheels } from './wheels.js';
+import { animateWheels, travelWheels } from './wheels.js';
+import { Suspension, roadTexture } from './suspension.js';
+import { Handling } from './handling.js';
 import { createHeadlight, createTailSpill } from './lamps.js';
 import { updateRearMirror } from './mirror.js';
 
@@ -62,6 +64,10 @@ function panelGeometry(points) {
 // it at 0.37 m, beyond the 0.35 m near plane. Visible cabin surfaces stay in
 // front of the road plane seen along the same rays up to a factor of 1.86.
 const COCKPIT_CABIN_SCALE = 1.45;
+
+// Crossfall slope across the wheel tracks of the lane (left side higher > 0).
+const LANE_CROSSFALL = (crossSection(Math.abs(V.laneOffset - V.trackWidth / 2)) -
+  crossSection(Math.abs(V.laneOffset + V.trackWidth / 2))) / V.trackWidth;
 
 export class Vehicle {
   constructor(world, atmo) {
@@ -195,7 +201,7 @@ export class Vehicle {
       for (const child of [...w.children]) w.rollGroup.add(child);
       w.add(w.rollGroup);
       Object.assign(w.userData, { front: sz > 0, radius: V.wheelRadius,
-        lateral: sx * V.trackWidth / 2, wheelbase: V.wheelbase });
+        lateral: sx * V.trackWidth / 2, wheelbase: V.wheelbase, restY: w.position.y });
       this.group.add(w);
       this.wheels.push(w);
     }
@@ -242,6 +248,11 @@ export class Vehicle {
     this.heading = 0;
     this.grade = 0;
     this._q = {};
+    this._qt = {};
+    this._qa = {};
+    this._qb = {};
+    this.suspension = new Suspension(V.suspension, { track: V.trackWidth, wheelbase: V.wheelbase });
+    this.handling = new Handling(V.handling, { wheelbase: V.wheelbase, laneOffset: V.laneOffset });
     this.assetWheels = [];
     this.assetMaterials = [];
     this.rearMirror = null;
@@ -257,38 +268,122 @@ export class Vehicle {
   get km() { return this.route.sToKm(this.s); }
   get dimensions() { return V; }
 
-  /** Deterministic placement at arc length s, no smoothing. */
+  /** Deterministic placement at arc length s: cruise speed, lane centre, suspension at rest. */
   snapTo(s) {
     this.s = this.route.clampS(s);
     // Roll depends on speed, so restoring only the position is not deterministic.
     this.speed = V.cruiseKph / 3.6;
+    this.accel = 0;
+    this.handling.reset(this.route, this.s, this.speed);
+    this._settle();
     this._place(0, true);
   }
 
-  targetSpeed() {
-    const p = this.route.at(this.s, this._q);
-    const c = Math.abs(p.curv);
-    let v = V.maxKph / 3.6;
-    if (c > 1e-5) v = Math.min(v, Math.sqrt(V.latAccel / c));
-    // look ahead so it slows before the corner
-    for (let d = 20; d <= 120; d += 20) {
-      const q = this.route.at(this.s + d, {});
-      const cc = Math.abs(q.curv);
-      if (cc > 1e-5) v = Math.min(v, Math.sqrt(V.latAccel / cc) + d * 0.06);
+  /** Suspension to its steady state at the current s and speed (no transient). */
+  _settle() {
+    this._s0 = this.s; this._v0 = this.speed; this._aFrame = 0;
+    this._e0 = this.handling.offset; this._lat0 = this.handling.aLat;
+    const input = this.suspension.input;
+    this.sampleSuspension(1, input);
+    this.suspension.reset(input);
+  }
+
+  /**
+   * Suspension input at fraction f of the current frame: s, speed, the lane
+   * offset and the lateral acceleration of the handling model move linearly
+   * from the frame start; the frame's mean acceleration applies.
+   */
+  sampleSuspension(f, input) {
+    const S = V.suspension, route = this.route, half = S.contactPatch, seed = route.seed | 0, H = this.handling;
+    const s = this._s0 + (this.s - this._s0) * f, v = this._v0 + (this.speed - this._v0) * f;
+    const offset = this._e0 + (H.offset - this._e0) * f;
+    for (let axle = 0; axle < 2; axle++) {
+      // The tyre averages the ribbon over its contact patch.
+      const sa = s + (axle === 0 ? 0.5 : -0.5) * V.wheelbase;
+      const a = route.at(sa - half, this._qa), b = route.at(sa + half, this._qb);
+      const y = (a.y + b.y) / 2, slope = (b.y - a.y) / (2 * half);
+      for (let side = 0; side < 2; side++) {
+        // Left wheels (side 0) run nearer the crown.
+        const lat = V.laneOffset + offset + (side === 0 ? -0.5 : 0.5) * V.trackWidth;
+        const ta = roadTexture(sa - half, side, S.roughness, seed, S.roughnessCorrelation);
+        const tb = roadTexture(sa + half, side, S.roughness, seed, S.roughnessCorrelation);
+        input.u[axle * 2 + side] = y + (ta + tb) / 2 + crossSection(Math.abs(lat)) + V.rideHeight;
+        input.ud[axle * 2 + side] = v * (slope + (tb - ta) / (2 * half));
+      }
     }
-    return clamp(v, V.minKph / 3.6, V.maxKph / 3.6);
+    input.aLong = this._aFrame;
+    // Side force of the tyres over the mass: the car's own path, not the route's.
+    input.aLat = this._lat0 + (H.aLat - this._lat0) * f;
+  }
+
+  /**
+   * Speed the autodrive aims for: the corner comfort limit sqrt(latAccel/c)
+   * at every route node ahead, relaxed by a planned braking distance at
+   * cornerDecel. The window reaches far enough that a node entering it cannot
+   * bind, so the target is continuous in s with a bounded rate.
+   */
+  targetSpeed() {
+    const route = this.route, s = this.s, vMin = V.minKph / 3.6, vMax = V.maxKph / 3.6, b = V.cornerDecel;
+    const reach = (vMax * vMax - vMin * vMin) / (2 * b);
+    const limits = this._cornerLimits();
+    const f = s / route.ds, i = Math.min(limits.length - 2, Math.floor(f));
+    let v2 = Math.min(vMax * vMax, lerp(limits[i], limits[i + 1], f - i));
+    for (let n = Math.ceil(f), d = n * route.ds - s; d <= reach && n < limits.length; n++, d += route.ds) {
+      v2 = Math.min(v2, limits[n] + 2 * b * d);
+    }
+    return clamp(Math.sqrt(v2), vMin, vMax);
+  }
+
+  /**
+   * Squared corner comfort speed at every route node, computed once per
+   * route. Like a driver judging a bend, it uses the mean curvature over
+   * V.cornerSpan of road (the heading change across it), not one node's.
+   */
+  _cornerLimits() {
+    const route = this.route;
+    if (this._limitsRoute !== route) {
+      const n = Math.floor(route.length / route.ds) + 1, w = Math.max(0, Math.round(V.cornerSpan / (2 * route.ds)));
+      const sum = new Float64Array(n + 1);
+      for (let k = 0; k < n; k++) sum[k + 1] = sum[k] + route.at(k * route.ds, this._qt).curv;
+      const limits = new Float64Array(n);
+      for (let k = 0; k < n; k++) {
+        const a = Math.max(0, k - w), b = Math.min(n, k + w + 1), c = Math.abs(sum[b] - sum[a]) / (b - a);
+        // Finite on straights too, so the limit interpolates between nodes.
+        limits[k] = V.latAccel / Math.max(c, 1e-5);
+      }
+      this._limits = limits;
+      this._limitsRoute = route;
+    }
+    return this._limits;
   }
 
   update(dt) {
     let wrapped = false;
     if (dt > 0) {
-      const tgt = this.targetSpeed();
-      const a = tgt > this.speed ? V.accel : -V.brake;
-      this.speed = a > 0 ? Math.min(tgt, this.speed + a * dt) : Math.max(tgt, this.speed + a * dt);
-      this.s += this.speed * dt;
+      const s0 = this.s, v0 = this.speed, H = this.handling;
+      const e0 = H.offset, lat0 = H.aLat;
+      // Speed control with a jerk-limited acceleration, so the body sees
+      // braking and traction loads build up and fade as in a real car. The
+      // demand unwinds early enough (speed error a^2 / 2J, 20 % margin) to
+      // settle on the target without overshoot.
+      const e = this.targetSpeed() - this.speed;
+      const demand = Math.sign(e) * Math.min(Math.abs(e) / V.speedLag, Math.sqrt(1.6 * V.jerk * Math.abs(e)));
+      const want = clamp(demand, -V.brake, V.accel);
+      this.accel += clamp(want - this.accel, -V.jerk * dt, V.jerk * dt);
+      this.speed = Math.max(0, this.speed + this.accel * dt);
+      // The car drives its own path; s is where that path stands along the route.
+      this.s = H.advance(dt, this.route, s0, v0, this.speed);
       if (this.s > this.route.length - 200) {
         this.s = this.route.kmToS(0);
         wrapped = true;
+      }
+      if (wrapped) {
+        H.reset(this.route, this.s, this.speed);
+        this._settle();
+      } else {
+        this._s0 = s0; this._v0 = v0; this._aFrame = (this.speed - v0) / dt;
+        this._e0 = e0; this._lat0 = lat0;
+        this.suspension.advance(dt, this);
       }
     }
     this._place(dt, false);
@@ -296,27 +391,36 @@ export class Vehicle {
   }
 
   _place(dt) {
-    const p = this.route.at(this.s, this._q);
-    const nx = -p.tz, nz = p.tx;
-    const lat = V.laneOffset;
-    const x = p.x + nx * lat, z = p.z + nz * lat;
-    const y = p.y + crossSection(Math.abs(lat)) + V.rideHeight;
+    const p = this.route.at(this.s, this._q), H = this.handling;
+    const x = H.x, z = H.z;
+    const y = p.y + crossSection(Math.abs(V.laneOffset + H.offset)) + V.rideHeight;
     this.pos.set(x, y, z);
-    this.heading = Math.atan2(p.tz, p.tx);
+    this.heading = H.heading;
     this.grade = p.grade;
-    this.curv = p.curv;
+    // Path curvature the front wheels steer for (right turn > 0).
+    this.curv = Math.tan(H.steer) / V.wheelbase;
 
-    this.group.position.set(x, y, z);
+    const sus = this.suspension;
+    if (!sus.ready) this._settle();
+    // The car's own path frame (pos, heading) is smooth for the cameras and
+    // the contact shadow; the body rides on the suspension above it.
+    this.group.position.set(x, sus.Y, z);
     // model faces +Z, world heading is atan2(tz,tx) measured from +X
     this.group.rotation.set(0, -this.heading + Math.PI / 2, 0);
-    // pitch with the road grade, roll into the corner a touch
-    const pitch = -Math.atan(p.grade);
-    const roll = clamp(-p.curv * this.speed * this.speed * 0.010, -0.055, 0.055);
-    this.group.rotateX(pitch);
+    this.group.rotateX(-sus.pitch);
+    // The cockpit camera keeps world up, so a body banked by the lane's
+    // crossfall would show the cabin tilted against a level horizon. In the
+    // cockpit the body drops that static bank (crossfall and its gravity
+    // lean) and keeps its roll relative to the road: corners and bumps.
+    const roll = this.cockpitMode ? sus.roll - sus.bankRoll(LANE_CROSSFALL) : sus.roll;
     this.group.rotateZ(roll);
 
-    animateWheels(this.assetReady ? this.assetWheels : this.wheels,
-      this.s - this.route.kmToS(0), p.curv, V.laneOffset);
+    const wheels = this.assetReady ? this.assetWheels : this.wheels;
+    animateWheels(wheels, this.s - this.route.kmToS(0), this.curv);
+    // Wheels hold their road contact: travel into the arch, upright to the road.
+    const u = sus.input.u;
+    const crossfall = Math.atan(((u[0] + u[2]) - (u[1] + u[3])) / (2 * V.trackWidth));
+    travelWheels(wheels, sus.compression, crossfall - roll, this.assetReady ? this.asset.scale.y : 1);
 
     const night = 1 - (this.atmo.palette.dayness ?? 1);
     const on = night > 0.35;

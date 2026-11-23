@@ -11,7 +11,7 @@ registerHooks({ load(url, context, next) {
     ? { format: 'module', source: readFileSync(fileURLToPath(url), 'utf8'), shortCircuit: true }
     : next(url, context);
 } });
-const { GrassField, createGrassGeometry, grassLodWeights, grassSeedPresence } = await import('../src/vegetation/grassField.js');
+const { GrassField, GRASS_REVEAL, createGrassGeometry, grassLodWeights, grassSeedPresence } = await import('../src/vegetation/grassField.js');
 const { GRASS_COVERAGE, GRASS_SNOW, GRASS_COVERAGE_GLSL, grassRoadCoverage, grassViewCoverage, grassWinterExposure } = await import('../src/vegetation/grassCoverage.js');
 const { InstanceCuller } = await import('../src/vegetation/instanceCulling.js');
 const { MEADOW_FIELD_GLSL } = await import('../src/terrain/meadowField.js');
@@ -1232,4 +1232,26 @@ test('tile mesh disposal preserves shared geometry until field disposal', () => 
   field.dispose();
   assert.equal(templateDisposed, 1);
   assert.equal(field.meshes.size, 0);
+});
+
+test('built grass is fully present until a reveal starts its fill-in on the shared clock', () => {
+  const field = new GrassField({ register() {} });
+  const records = Array.from({ length: 6 }, (_, i) => ({ ...record(`reveal-${i}`, i, -12), roadDist: 8, rank: i / 6 }));
+  const iterator = field.buildCellsSteps(records);
+  let step;
+  do { step = iterator.next(); } while (!step.done);
+  const meshes = step.value;
+  assert.ok(meshes.length > 0);
+  for (const mesh of meshes) {
+    const reveal = mesh.geometry.getAttribute('iGrassReveal');
+    assert.ok(reveal.isInstancedBufferAttribute);
+    assert.ok(reveal.array.every(value => value === GRASS_REVEAL.settled), 'nothing fades unless a reveal is started');
+    const version = reveal.version;
+    field.reveal(mesh, 12.5);
+    assert.ok(reveal.array.every(value => value === 12.5));
+    assert.ok(reveal.version > version, 'the new start time is uploaded');
+  }
+  field.setRevealClock(13);
+  assert.equal(field.material.userData.uniforms.uGrassRevealClock.value, 13);
+  field.dispose();
 });

@@ -11,7 +11,7 @@ registerHooks({ load(url, context, next) {
     : next(url, context);
 } });
 const { POPULATION, generatePopulation, treeRoadDistance, treeRoadDensity } = await import('../src/vegetation/population.js');
-const { PopulationPool } = await import('../src/vegetation/populationPool.js');
+const { PopulationPool, POPULATION_WORKERS_MAX, populationWorkerCount } = await import('../src/vegetation/populationPool.js');
 const { serializeWorld, hydrateWorld } = await import('../src/terrain/mesh-data.js');
 const { World } = await import('../src/world/world.js');
 const { VEG: V } = await import('../src/vegetation/params.js');
@@ -394,6 +394,22 @@ test('hydrated worker worlds reproduce the same road-aware population records', 
   }
 });
 
+test('grass candidates outside the road band never reach the heightfield sample', () => {
+  const world = routedWorld(), sample = world.sample.bind(world);
+  let calls = 0;
+  world.sample = (x, z, out) => { calls++; return sample(x, z, out); };
+  const beside = finish(generatePopulation(world, 'grass', 0, 0));
+  assert.ok(beside.length > 0);
+  assert.ok(calls < POPULATION.grass.candidates, 'only the in-band share of the lattice is evaluated');
+  for (const record of beside) {
+    assert.ok(record.roadDist >= GRASS_COVERAGE.roadStart && record.roadDist < GRASS_COVERAGE.roadEnd);
+  }
+  calls = 0;
+  // z in [32, 64] m from a straight road along z = 0 lies wholly beyond roadEnd.
+  assert.deepEqual(finish(generatePopulation(world, 'grass', 0, 1)), []);
+  assert.equal(calls, 0, 'a tile wholly beyond the band costs no terrain evaluation');
+});
+
 class FakeWorker {
   static instances = [];
   constructor(url, options) {
@@ -408,17 +424,23 @@ class FakeWorker {
 
 const tile = { kind: 'grass', i: 0, j: 0 };
 
-function poolFixture(t) {
+function poolFixture(t, options = {}) {
   FakeWorker.instances.length = 0;
-  const pool = new PopulationPool({ WorkerClass: FakeWorker, size: 8 });
+  const pool = new PopulationPool({ WorkerClass: FakeWorker, ...options });
   pool.reset(routedWorld());
   t.after(() => pool.dispose());
-  assert.equal(FakeWorker.instances.length, 1);
-  return { pool, worker: FakeWorker.instances[0] };
+  return { pool, worker: FakeWorker.instances[0], workers: FakeWorker.instances.slice() };
 }
 
-test('population pool clones the world once, uses one worker and dispatches queued priorities', (t) => {
+const ready = (pool, workers) => { for (const worker of workers) worker.emit({ type: 'ready', epoch: pool.epoch }); };
+const built = (worker, records) => {
+  const build = worker.builds.at(-1);
+  worker.emit({ type: 'built', epoch: build.epoch, id: build.id, records });
+};
+
+test('a single-worker pool clones the world once and dispatches queued priorities', (t) => {
   const { pool, worker } = poolFixture(t);
+  assert.equal(FakeWorker.instances.length, 1);
   assert.ok(worker.url.endsWith('/population.worker.js'));
   assert.equal(worker.options.type, 'module');
   pool.request('far', tile, 30);
@@ -436,6 +458,63 @@ test('population pool clones the world once, uses one worker and dispatches queu
   assert.deepEqual(pool.poll('near'), { records: [{ id: 'near' }] });
   assert.equal(pool.poll('near'), null);
   assert.equal(pool.pending, 2);
+});
+
+test('generation worker count follows hardware threads within the bound', () => {
+  assert.equal(populationWorkerCount(undefined), 1);
+  assert.equal(populationWorkerCount(2), 1);
+  assert.equal(populationWorkerCount(4), 2);
+  assert.equal(populationWorkerCount(6), 3);
+  assert.equal(populationWorkerCount(64), POPULATION_WORKERS_MAX);
+});
+
+test('pool workers each clone the world once and drain one shared priority queue', (t) => {
+  const { pool, workers } = poolFixture(t, { size: 8 });
+  assert.equal(workers.length, POPULATION_WORKERS_MAX);
+  for (const worker of workers) assert.equal(worker.messages.filter(message => message.type === 'init').length, 1);
+  for (const [key, priority] of [['d', 40], ['a', -30], ['c', 20], ['b', -10]]) pool.request(key, tile, priority);
+  ready(pool, workers);
+  const running = () => workers.flatMap(worker => worker.builds.map(build => build.id));
+  assert.deepEqual(running().sort(), [2, 3, 4], 'the three most urgent jobs start, one per worker');
+  const busy = workers.find(worker => worker.builds.at(-1).id === 2);
+  built(busy, ['a']);
+  assert.deepEqual(pool.poll('a'), { records: ['a'] });
+  assert.equal(busy.builds.at(-1).id, 1, 'the freed worker takes the next queued job');
+});
+
+test('background jobs never occupy the last idle worker', (t) => {
+  const { pool, workers } = poolFixture(t, { size: 3, backgroundPriority: 0 });
+  ready(pool, workers);
+  for (const [key, priority] of [['tree-a', 5], ['tree-b', 6], ['tree-c', 7]]) pool.request(key, tile, priority);
+  const idle = () => workers.filter(worker => worker.builds.length === 0 ||
+    pool._slots.find(slot => slot.worker === worker).current === null);
+  assert.equal(workers.reduce((n, worker) => n + worker.builds.length, 0), 2);
+  assert.equal(idle().length, 1);
+  pool.request('grass', tile, -100);
+  const reserved = workers.find(worker => worker.builds.at(-1)?.tile && worker.builds.length === 1 &&
+    pool._slots.find(slot => slot.worker === worker).current?.key === 'grass');
+  assert.ok(reserved, 'urgent work starts at once on the reserved worker');
+  built(reserved, ['grass']);
+  assert.equal(pool._slots.find(slot => slot.worker === reserved).current, null, 'tree-c still leaves it free');
+  const tree = workers.find(worker => pool._slots.find(slot => slot.worker === worker).current?.key === 'tree-a');
+  built(tree, ['tree-a']);
+  assert.equal(pool._slots.filter(slot => slot.current?.key === 'tree-c').length, 1,
+    'with two idle workers a background job may take one');
+});
+
+test('one failed worker returns only its own job for fallback while the others continue', (t) => {
+  const { pool, workers } = poolFixture(t, { size: 2 });
+  ready(pool, workers);
+  for (const [key, priority] of [['first', -3], ['second', -2], ['third', -1]]) pool.request(key, tile, priority);
+  const failing = workers.find(worker => pool._slots.find(slot => slot.worker === worker).current?.key === 'first');
+  const healthy = workers.find(worker => worker !== failing);
+  failing.onerror({ message: 'synthetic worker failure' });
+  assert.equal(pool.available, true);
+  assert.match(pool.poll('first').error, /synthetic/);
+  assert.equal(pool.poll('third'), null, 'queued work waits for the remaining worker');
+  built(healthy, ['second']);
+  assert.deepEqual(pool.poll('second'), { records: ['second'] });
+  assert.equal(pool._slots.find(slot => slot.worker === healthy).current.key, 'third');
 });
 
 test('pool cancellation rejects stale same-key results and frees completed and queued records', (t) => {

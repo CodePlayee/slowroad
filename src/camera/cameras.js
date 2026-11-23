@@ -62,9 +62,10 @@ function canopyBlocks(crowns, eye, target) {
 /**
  * Tree crowns around the elevated rigs. Tiles come from the vegetation placement
  * itself (every accepted tree record is drawn), so the rig avoids exactly the
- * trees on screen. Only tiles under the rig's own footprint are ever built:
- * ahead of the car on a population worker, or on the main thread when a pose is
- * needed before the worker delivered (snap/teleport) or no worker exists.
+ * trees on screen. Only tiles under the rigs' own footprint are ever built:
+ * around and ahead of the car on a population worker in every camera mode, or on
+ * the main thread when a pose is needed before the worker delivered
+ * (boot/teleport snap) or no worker exists.
  */
 class CanopyIndex {
   static supports(world) {
@@ -157,6 +158,11 @@ class CanopyIndex {
   /** Background generation for the circle; false when the main-thread budget ran out. */
   prefetch(x, z, r, deadline, priority) {
     return this._tilesNear(x, z, r, entry => this._background(entry, deadline, priority));
+  }
+
+  /** True when every tile whose trees can reach the circle has its crowns. */
+  built(x, z, r) {
+    return this._tilesNear(x, z, r, entry => entry.crowns !== null);
   }
 
   /** Keeps the tiles nearest (x, z) and drops worker jobs nobody waits for. */
@@ -410,16 +416,22 @@ export class CameraRig {
     return lerp(this._smoothReach(mode, n), this._smoothReach(mode, n + 1), u - n);
   }
 
-  /** Requests tree tiles ahead of the elevated rigs (worker, or a per-frame budget), so `_target` rarely builds one. */
+  /**
+   * Requests tree tiles around the elevated rigs (worker, or a per-frame budget)
+   * in every mode, so `_target` rarely builds one: neither while driving in
+   * cine/vista nor when a camera switch snaps into them. The window spans every
+   * node a snap reads (eroded and smoothed reach behind and ahead of the car)
+   * plus the route ahead, and the widest family footprint of both elevated rigs.
+   */
   _prefetchCanopy() {
-    if (this.mode !== 'cine' && this.mode !== 'vista') return;
     const index = this._canopyIndex();
     if (!index) return;
     const deadline = performance.now() + K.prefetchMs, step = 8 * K.spacing, s = this.vehicle.s;
-    const ahead = (K.erode + K.smooth + 1) * K.spacing + K.prefetch;
-    for (let d = 0; d <= ahead; d += step) {
-      const foot = this._nodeFootprint(this.mode, s + d);
-      if (!index.prefetch(foot.x, foot.z, foot.r + step / 2, deadline, d)) break;
+    const behind = (K.erode + K.smooth + 1) * K.spacing, ahead = behind + K.prefetch;
+    for (let d = -behind; d <= ahead; d += step) {
+      const r = Math.max(this._nodeFootprint('vista', s + d).r, this._nodeFootprint('cine', s + d).r);
+      const foot = this._footprint;
+      if (!index.prefetch(foot.x, foot.z, r + step / 2, deadline, Math.abs(d))) break;
     }
     index.prune(this.vehicle.pos.x, this.vehicle.pos.z);
     const n = Math.floor(s / K.spacing), keep = 2 * (K.erode + K.smooth + 2) + Math.ceil(K.prefetch / K.spacing);
@@ -427,6 +439,30 @@ export class CameraRig {
       for (const cache of Object.values(caches)) {
         if (cache.size > 4 * keep) for (const key of cache.keys()) if (Math.abs(key - n) > keep) cache.delete(key);
       }
+    }
+    this._warmReach(index, deadline);
+  }
+
+  /**
+   * Fills the reach caches that a snap into either elevated rig reads at the
+   * car's arc length, only from built tiles and within the frame budget, so a
+   * camera switch interpolates cached values instead of testing ~40 nodes per rig.
+   * The caches are pure functions of (world, mode, node): filling them early
+   * cannot change a pose.
+   */
+  _warmReach(index, deadline) {
+    const n = Math.floor(this.vehicle.s / K.spacing), span = K.smooth + K.erode;
+    for (const mode of ['cine', 'vista']) {
+      if (this._reachSmooth[mode].has(n) && this._reachSmooth[mode].has(n + 1)) continue;
+      for (let m = n - span; m <= n + 1 + span; m++) {
+        if (this._reachNodes[mode].has(m)) continue;
+        if (performance.now() >= deadline) return;
+        const foot = this._nodeFootprint(mode, m * K.spacing);
+        if (!index.built(foot.x, foot.z, foot.r)) return;
+        this._nodeReach(mode, m);
+      }
+      this._smoothReach(mode, n);
+      this._smoothReach(mode, n + 1);
     }
   }
 
@@ -442,12 +478,15 @@ export class CameraRig {
   }
 
   update(dt) {
+    // Also while paused or holding a transition, so a later snap finds its data:
+    // tree tiles and clearance for the elevated rigs, the open-side lean for chase.
+    this._prefetchCanopy();
+    if (this.mode !== 'chase') this._openSide(this.vehicle.s);
     if (!this._init) return this.snap();
     // Pausing/loading must not snap a moving camera forward to its ideal pose.
     // Teleports, mode changes and deterministic captures call snap explicitly.
     if (!Number.isFinite(dt) || dt <= 0) return;
     this._target(this._pos, this._aim);
-    this._prefetchCanopy();
     const cfg = C[this.mode];
     const k = 1 - Math.exp(-(cfg.lag ?? 6) * dt);
     this._smoothPos.lerp(this._pos, this.mode === 'cockpit' ? 1 : k);

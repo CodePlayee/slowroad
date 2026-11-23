@@ -11,6 +11,10 @@ import { clamp, smoothstep, lerp } from '../core/rng.js';
 import { ROAD as R } from './params.js';
 import { TERRAIN as T } from '../terrain/params.js';
 
+// Sharpest vertical curve (1/m): a 460 m radius keeps the vertical acceleration
+// within 0.2 g at 108 km/h, the autodrive's top speed, which leaves the
+// suspension clear of its bump stops in the tightest sag.
+const MAX_VERTICAL_CURVATURE = 0.2 * 9.81 / 30 ** 2;
 const TAU = Math.PI * 2;
 function angWrap(a) { while (a > Math.PI) a -= TAU; while (a < -Math.PI) a += TAU; return a; }
 
@@ -145,27 +149,56 @@ export class Route {
     }
   }
 
-  /** Uniform arc-length resample with Catmull-Rom interpolation. */
+  /**
+   * Uniform arc-length samples of the cubic spline through the smoothed plan
+   * points. The plan is a 22 m polyline; sampled linearly it turned the road
+   * only at its vertices (half the 5.5 m nodes had zero turn, the rest up to
+   * 6 degrees). The spline is C2, so heading and curvature change continuously
+   * and the curve still passes through every plan point, which keeps the road
+   * within ~0.3 m of the plan and its length (hence every km) within a few
+   * metres over the route.
+   */
   _resample(pts) {
-    const cum = [0];
-    for (let i = 1; i < pts.length; i++) {
-      cum.push(cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z));
-    }
-    const total = cum[cum.length - 1];
+    const m = pts.length, spans = m - 1;
+    // Uniform cubic B-spline controls, padded one each end; reflected end
+    // controls pin the curve to the plan's end points.
+    const cx = new Float64Array(m + 2), cz = new Float64Array(m + 2);
+    for (let i = 0; i < m; i++) { cx[i + 1] = pts[i].x; cz[i + 1] = pts[i].z; }
+    interpolatingControls(cx, m); interpolatingControls(cz, m);
+    cx[0] = 2 * cx[1] - cx[2]; cz[0] = 2 * cz[1] - cz[2];
+    cx[m + 1] = 2 * cx[m] - cx[m - 1]; cz[m + 1] = 2 * cz[m] - cz[m - 1];
+    const q = {};
+    // Speed |r'(u)| at global parameter g (span floor(g), local g - span).
+    const speed = (g) => {
+      const k = Math.min(spans - 1, Math.floor(g));
+      bspline(cx, cz, k, g - k, q);
+      return Math.hypot(q.dx, q.dz);
+    };
+    // Arc length of [g0, g1] by 2-point Gauss-Legendre (the speed is smooth
+    // inside a span; sub-intervals never straddle a knot).
+    const G = 0.5 / Math.sqrt(3);
+    const length = (g0, g1) => {
+      const c = 0.5 * (g0 + g1), w = g1 - g0;
+      return 0.5 * w * (speed(c - G * w) + speed(c + G * w));
+    };
+    const K = 16, sub = spans * K;
+    const cum = new Float64Array(sub + 1);
+    for (let j = 0; j < sub; j++) cum[j + 1] = cum[j] + length(j / K, (j + 1) / K);
+
     const ds = R.resample;
-    const m = Math.floor(total / ds);
+    const count = Math.floor(cum[sub] / ds);
     const out = [];
     let j = 0;
-    for (let i = 0; i <= m; i++) {
+    for (let i = 0; i <= count; i++) {
       const s = i * ds;
-      while (j < cum.length - 2 && cum[j + 1] < s) j++;
-      const t = (s - cum[j]) / (cum[j + 1] - cum[j] || 1);
-      out.push({
-        s,
-        x: lerp(pts[j].x, pts[j + 1].x, t),
-        z: lerp(pts[j].z, pts[j + 1].z, t),
-        y: 0, bridge: 0,
-      });
+      while (j < sub - 1 && cum[j + 1] < s) j++;
+      // Linear guess inside the sub-interval, then one Newton step on arc length.
+      const g0 = j / K;
+      let g = g0 + (s - cum[j]) / ((cum[j + 1] - cum[j]) || 1) / K;
+      g = clamp(g + (s - cum[j] - length(g0, g)) / (speed(g) || 1), 0, spans);
+      const k = Math.min(spans - 1, Math.floor(g));
+      bspline(cx, cz, k, g - k, q);
+      out.push({ s, x: q.x, z: q.z, y: 0, bridge: 0 });
     }
     return out;
   }
@@ -253,7 +286,11 @@ export class Route {
     for (const b of this.bridges) {
       const ra = Math.ceil(approach / ds);
       for (let k = b.a0 - ra; k <= b.a1 + ra; k++) {
-        if (k < 0 || k >= n) continue;
+        // The envelope only lifts the road toward a deck above it. A deck at
+        // or below the profile used to contribute the profile itself, which
+        // re-imposed after smoothing put a single-node hump (18 cm on seed 12
+        // km 1.55) where the smoothing had lowered a crest.
+        if (k < 0 || k >= n || b.requiredY <= y[k]) continue;
         let w;
         if (k >= b.a0 && k <= b.a1) w = 1;
         else if (k < b.a0) w = smoothstep(0, 1, 1 - (b.a0 - k) / ra);
@@ -274,6 +311,12 @@ export class Route {
     // the deck stands well above the approach: lift the approaches into fill
     // instead (never lowers, so the deck clearance is kept).
     raiseToGrade(sm, ds, R.maxGrade);
+    // The grade limits leave corners where a ramp meets the approach (an 11 %
+    // grade change in one 5.5 m step on seed 7 km 10.54). Round every vertex
+    // into a vertical curve while each deck keeps its clearance level.
+    const deck = new Float64Array(n).fill(-Infinity);
+    for (const b of this.bridges) for (let k = b.a0; k <= b.a1; k++) deck[k] = Math.max(deck[k], b.requiredY);
+    limitVerticalCurves(sm, ds, R.maxGrade, MAX_VERTICAL_CURVATURE, deck);
 
     for (let i = 0; i < n; i++) res[i].y = sm[i];
 
@@ -336,21 +379,60 @@ export class Route {
 
   clampS(s) { return clamp(s, 0, this.length - 1e-3); }
 
-  /** Interpolated sample at arc length s. */
+  /**
+   * Sample at arc length s. The plan is the quintic Hermite through the node
+   * positions, unit tangents and curvatures (C2, so the tangent and curvature
+   * reported are continuous and belong to the curve drawn). Height and grade
+   * retain the profile solver's bounded linear interpolation.
+   */
   at(s, out = {}) {
     s = this.clampS(s);
     const f = s / this.ds;
     let i = Math.floor(f);
     if (i >= this.n - 1) i = this.n - 2;
     const t = f - i, j = i + 1;
+    const X = this.X, Z = this.Z, TX = this.TX, TZ = this.TZ, CURV = this.CURV;
+    // The chord stands in for the arc length between nodes (they differ by
+    // ds^3 kappa^2 / 24, a few micrometres), and keeps an evenly spaced straight
+    // polyline exactly linear whatever its spacing.
+    const h = Math.hypot(X[j] - X[i], Z[j] - Z[i]), h2 = h * h;
+    const t2 = t * t, t3 = t2 * t, t4 = t3 * t, t5 = t4 * t;
+    // Quintic Hermite basis for velocity (v) and acceleration (a) at node i (0)
+    // and j (1), with first (d) and second (dd) t-derivatives; the position
+    // weights are 1 - p1 at node i and p1 at node j.
+    const p1 = 10 * t3 - 15 * t4 + 6 * t5;
+    const v0 = t - 6 * t3 + 8 * t4 - 3 * t5, v1 = -4 * t3 + 7 * t4 - 3 * t5;
+    const a0 = 0.5 * (t2 - 3 * t3 + 3 * t4 - t5), a1 = 0.5 * (t3 - 2 * t4 + t5);
+    const dp = 30 * (t2 - 2 * t3 + t4);
+    const dv0 = 1 - 18 * t2 + 32 * t3 - 15 * t4, dv1 = -12 * t2 + 28 * t3 - 15 * t4;
+    const da0 = 0.5 * (2 * t - 9 * t2 + 12 * t3 - 5 * t4), da1 = 0.5 * (3 * t2 - 8 * t3 + 5 * t4);
+    const ddp = 60 * (t - 3 * t2 + 2 * t3);
+    const ddv0 = -36 * t + 96 * t2 - 60 * t3, ddv1 = -24 * t + 84 * t2 - 60 * t3;
+    const dda0 = 1 - 9 * t + 18 * t2 - 10 * t3, dda1 = 3 * t - 12 * t2 + 10 * t3;
+    // Node velocity h T and acceleration h^2 kappa N, with N = (-tz, tx).
+    const vx0 = h * TX[i], vz0 = h * TZ[i], vx1 = h * TX[j], vz1 = h * TZ[j];
+    const ax0 = -h2 * CURV[i] * TZ[i], az0 = h2 * CURV[i] * TX[i];
+    const ax1 = -h2 * CURV[j] * TZ[j], az1 = h2 * CURV[j] * TX[j];
+    const ex = X[j] - X[i], ez = Z[j] - Z[i];
     out.s = s;
-    out.x = lerp(this.X[i], this.X[j], t);
+    out.x = X[i] + p1 * ex + v0 * vx0 + v1 * vx1 + a0 * ax0 + a1 * ax1;
+    out.z = Z[i] + p1 * ez + v0 * vz0 + v1 * vz1 + a0 * az0 + a1 * az1;
+    const dx = dp * ex + dv0 * vx0 + dv1 * vx1 + da0 * ax0 + da1 * ax1;
+    const dz = dp * ez + dv0 * vz0 + dv1 * vz1 + da0 * az0 + da1 * az1;
+    const ddx = ddp * ex + ddv0 * vx0 + ddv1 * vx1 + dda0 * ax0 + dda1 * ax1;
+    const ddz = ddp * ez + ddv0 * vz0 + ddv1 * vz1 + dda0 * az0 + dda1 * az1;
+    const l = Math.hypot(dx, dz);
+    if (l > 0) {
+      out.tx = dx / l; out.tz = dz / l;
+      out.curv = (dx * ddz - dz * ddx) / (l * l * l);
+    } else {
+      out.tx = TX[i]; out.tz = TZ[i];
+      out.curv = lerp(CURV[i], CURV[j], t);
+    }
+    // The profile solver bounds the piecewise-linear height and its node grades.
+    // Cubic height interpolation can overshoot both the grade limit and bridge
+    // clearance between those constrained nodes; smooth only the plan here.
     out.y = lerp(this.Y[i], this.Y[j], t);
-    out.z = lerp(this.Z[i], this.Z[j], t);
-    let tx = lerp(this.TX[i], this.TX[j], t), tz = lerp(this.TZ[i], this.TZ[j], t);
-    const l = Math.hypot(tx, tz) || 1;
-    out.tx = tx / l; out.tz = tz / l;
-    out.curv = lerp(this.CURV[i], this.CURV[j], t);
     out.grade = lerp(this.GRADE[i], this.GRADE[j], t);
     out.bridge = lerp(this.BR[i], this.BR[j], t);
     out.heading = Math.atan2(out.tz, out.tx);
@@ -396,11 +478,15 @@ export class Route {
       const d2 = (px - x) ** 2 + (pz - z) ** 2;
       if (d2 < bestD2) { bestD2 = d2; bestS = (j + t) * this.ds; }
     }
-    const dist = Math.sqrt(bestD2);
-    if (dist > maxDist * 1.35) return null;
-    const p = this.at(bestS);
+    if (Math.sqrt(bestD2) > maxDist * 1.35) return null;
+    // The chords cut inside the curve by up to ds^2 kappa / 8: one Newton step
+    // puts the foot on the curve's own normal through (x, z).
+    let p = this.at(bestS);
+    const ex = x - p.x, ez = z - p.z;
+    const along = ex * p.tx + ez * p.tz, lat = ez * p.tx - ex * p.tz;
+    if (along !== 0) p = this.at(bestS + along / Math.max(0.25, 1 - p.curv * lat));
     bestSide = Math.sign((x - p.x) * p.tz - (z - p.z) * p.tx);
-    p.dist = dist; p.side = bestSide || 1;
+    p.dist = Math.hypot(x - p.x, z - p.z); p.side = bestSide || 1;
     return p;
   }
 
@@ -413,6 +499,43 @@ export class Route {
 }
 
 // ------------------------------------------------------------------ helpers
+
+/**
+ * Turns c[1..m], the plan coordinates P[0..m-1], into the uniform cubic
+ * B-spline controls D[0..m-1] (in place) whose curve passes through every
+ * P[i]: (D[i-1] + 4 D[i] + D[i+1]) / 6 = P[i], with D[0] = P[0] and
+ * D[m-1] = P[m-1] (reflected end controls). Tridiagonal (Thomas) solve.
+ */
+function interpolatingControls(c, m) {
+  const n = m - 2;
+  if (n < 1) return;
+  const p0 = c[1], p1 = c[m], cp = new Float64Array(n), dp = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    let rhs = 6 * c[i + 2];
+    if (i === 0) rhs -= p0;
+    if (i === n - 1) rhs -= p1;
+    const den = 4 - (i > 0 ? cp[i - 1] : 0);
+    cp[i] = 1 / den;
+    dp[i] = (rhs - (i > 0 ? dp[i - 1] : 0)) / den;
+  }
+  for (let i = n - 2; i >= 0; i--) dp[i] -= cp[i] * dp[i + 1];
+  for (let i = 0; i < n; i++) c[i + 2] = dp[i];
+}
+
+/**
+ * Uniform cubic B-spline span k (padded controls k..k+3) at local u in [0, 1]:
+ * position and first derivative into out.
+ */
+function bspline(cx, cz, k, u, out) {
+  const w = 1 - u, u2 = u * u, u3 = u2 * u;
+  const b0 = w * w * w / 6, b1 = (3 * u3 - 6 * u2 + 4) / 6, b2 = (-3 * u3 + 3 * u2 + 3 * u + 1) / 6, b3 = u3 / 6;
+  const d0 = -0.5 * w * w, d1 = 0.5 * (3 * u2 - 4 * u), d2 = 0.5 * (-3 * u2 + 2 * u + 1), d3 = 0.5 * u2;
+  out.x = b0 * cx[k] + b1 * cx[k + 1] + b2 * cx[k + 2] + b3 * cx[k + 3];
+  out.z = b0 * cz[k] + b1 * cz[k + 1] + b2 * cz[k + 2] + b3 * cz[k + 3];
+  out.dx = d0 * cx[k] + d1 * cx[k + 1] + d2 * cx[k + 2] + d3 * cx[k + 3];
+  out.dz = d0 * cz[k] + d1 * cz[k + 1] + d2 * cz[k + 2] + d3 * cz[k + 3];
+  return out;
+}
 
 function movingAverage(src, half) {
   const n = src.length;
@@ -478,4 +601,69 @@ function raiseToGrade(y, ds, maxGrade) {
   const n = y.length, m = maxGrade * ds;
   for (let i = 1; i < n; i++) if (y[i] < y[i - 1] - m) y[i] = y[i - 1] - m;
   for (let i = n - 2; i >= 0; i--) if (y[i] < y[i + 1] - m) y[i] = y[i + 1] - m;
+}
+
+/**
+ * Round every vertex whose change of grade exceeds maxCurvature * ds into a
+ * vertical curve, keeping steps within maxGrade and the floor (bridge deck
+ * clearance). Each offending corner is solved in a window of +-350 m (its
+ * rounding settles within a few dozen metres), so the rest of the route is
+ * neither iterated nor moved; the whole profile is solved only if a window
+ * edge would leave a corner behind.
+ */
+function limitVerticalCurves(y, ds, maxGrade, maxCurvature, floor) {
+  const n = y.length, c = maxCurvature * ds * ds, m = maxGrade * ds, reach = 64;
+  const bent = (i) => Math.abs(y[i - 1] - 2 * y[i] + y[i + 1]) > c + 1e-6;
+  for (let i = 1; i < n - 1; i++) {
+    if (!bent(i)) continue;
+    const lo = Math.max(0, i - reach);
+    let hi = Math.min(n, i + reach + 1);
+    for (let j = i + 1; j < Math.min(hi, n - 1); j++) if (bent(j)) hi = Math.min(n, j + reach + 1);
+    projectProfile(y.subarray(lo, hi), c, m, floor.subarray(lo, hi));
+    i = hi - 1;
+  }
+  for (let i = 1; i < n - 1; i++) if (bent(i)) { projectProfile(y, c, m, floor); return; }
+}
+
+/**
+ * Nearest profile (least squares) to y whose second differences stay within
+ * c, steps within m and values above floor: Dykstra's alternating projection
+ * onto these convex constraints. Nodes away from violations do not move, and
+ * a corner is rounded by cutting crests and filling sags about equally
+ * rather than by shifting a whole ramp.
+ */
+function projectProfile(y, c, m, floor) {
+  const n = y.length;
+  // Dykstra corrections, one scalar per constraint along its normal.
+  const curv = new Float64Array(n), grade = new Float64Array(n), deck = new Float64Array(n);
+  for (let pass = 0; pass < 20000; pass++) {
+    let moved = 0;
+    for (let i = 1; i < n - 1; i++) {
+      // Normal (1, -2, 1), |a|^2 = 6.
+      const mu = curv[i], t = y[i - 1] - 2 * y[i] + y[i + 1] + 6 * mu;
+      const delta = ((t > c ? c : t < -c ? -c : t) - t) / 6, step = mu + delta;
+      curv[i] = -delta;
+      if (step === 0) continue;
+      y[i - 1] += step; y[i] -= 2 * step; y[i + 1] += step;
+      moved = Math.max(moved, Math.abs(step));
+    }
+    for (let i = 0; i < n - 1; i++) {
+      // Normal (-1, 1), |a|^2 = 2.
+      const mu = grade[i], t = y[i + 1] - y[i] + 2 * mu;
+      const delta = ((t > m ? m : t < -m ? -m : t) - t) / 2, step = mu + delta;
+      grade[i] = -delta;
+      if (step === 0) continue;
+      y[i] -= step; y[i + 1] += step;
+      moved = Math.max(moved, Math.abs(step));
+    }
+    for (let i = 0; i < n; i++) {
+      if (floor[i] === -Infinity) continue;
+      const mu = deck[i], t = y[i] + mu;
+      const delta = Math.max(t, floor[i]) - t, step = mu + delta;
+      deck[i] = -delta;
+      y[i] += step;
+      moved = Math.max(moved, Math.abs(step));
+    }
+    if (moved < 1e-6) return;
+  }
 }

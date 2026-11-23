@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { prepareFlowerPair, flowerMaterials } from './flower.js';
 import { grassRoadCoverage } from './grassCoverage.js';
+import { GRASS_REVEAL } from './grassField.js';
 
 // Keep the full fade inside the 56 m draw budget; CPU and shader share its end.
 export const FLOWER_RANGE = Object.freeze({ fadeStart: 39, fadeEnd: 56 });
@@ -20,8 +21,11 @@ function disposeLoadedScene(gltf) {
 }
 
 function disposeCellGeometry(geometry) {
-  // Cell geometry borrows every authored vertex/index buffer from the field.
-  for (const name of Object.keys(geometry.attributes)) geometry.deleteAttribute(name);
+  // Cell geometry borrows every authored vertex/index buffer from the field;
+  // only its per-instance attributes are its own and released with it.
+  for (const [name, attribute] of Object.entries(geometry.attributes)) {
+    if (!attribute.isInstancedBufferAttribute) geometry.deleteAttribute(name);
+  }
   geometry.setIndex(null);
   geometry.dispose();
 }
@@ -32,21 +36,24 @@ export class FlowerField {
     this.disposed = false;
     this.meshes = new Set();
     this.assetError = null;
-    this.uniforms = { uFlowerSeason: { value: 1 } };
+    this.uniforms = { uFlowerSeason: { value: 1 }, uFlowerRevealClock: { value: 0 } };
     this.materials = flowerMaterials();
     for (const [name, material] of Object.entries(this.materials)) {
       material.name = `field-${name}`;
       material.alphaToCoverage = true;
       material.onBeforeCompile = shader => {
         Object.assign(shader.uniforms, this.uniforms);
+        // Flowers of a late-revealed tile grow from their roots with its grass.
         shader.vertexShader = shader.vertexShader
-          .replace('#include <common>', '#include <common>\nvarying float vFlowerDistance;')
-          .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFlowerDistance = length((modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz - cameraPosition);');
+          .replace('#include <common>', '#include <common>\nvarying float vFlowerDistance;\nattribute float iFlowerReveal;\nuniform float uFlowerRevealClock;')
+          .replace('#include <begin_vertex>', `#include <begin_vertex>
+transformed *= smoothstep(0.0, ${GRASS_REVEAL.seconds.toFixed(2)}, uFlowerRevealClock - iFlowerReveal);
+vFlowerDistance = length((modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz - cameraPosition);`);
         shader.fragmentShader = shader.fragmentShader
           .replace('#include <common>', '#include <common>\nuniform float uFlowerSeason;\nvarying float vFlowerDistance;')
           .replace('#include <alphatest_fragment>', `#include <alphatest_fragment>\ndiffuseColor.a *= uFlowerSeason * (1.0 - smoothstep(${FLOWER_RANGE.fadeStart.toFixed(1)}, ${FLOWER_RANGE.fadeEnd.toFixed(1)}, vFlowerDistance));`);
       };
-      material.customProgramCacheKey = () => 'field-flower-v2';
+      material.customProgramCacheKey = () => 'field-flower-v3';
       atmo.register(material);
     }
     this.assetPromise = new GLTFLoader().loadAsync('/models/flower-nature.glb')
@@ -76,6 +83,8 @@ export class FlowerField {
         geometry.boundingSphere = source.boundingSphere;
         const material = this.materials[part === 'stem' ? 'flowerStem' : 'flowerBlossom'];
         const mesh = new THREE.InstancedMesh(geometry, material, flowers.length);
+        geometry.setAttribute('iFlowerReveal', new THREE.InstancedBufferAttribute(
+          new Float32Array(flowers.length).fill(GRASS_REVEAL.settled), 1));
         const rootBounds = new THREE.Box3(), worldRootBounds = new THREE.Box3(), eye = new THREE.Vector3();
         this.meshes.add(mesh);
         result.push(mesh);
@@ -118,6 +127,16 @@ export class FlowerField {
       throw error;
     }
   }
+
+  /** Start this mesh's grow-in at `clock` seconds of the reveal clock (setRevealClock). */
+  reveal(mesh, clock) {
+    const attribute = mesh.geometry?.getAttribute('iFlowerReveal');
+    if (!attribute || !Number.isFinite(clock)) return;
+    attribute.array.fill(clock);
+    attribute.needsUpdate = true;
+  }
+
+  setRevealClock(clock) { this.uniforms.uFlowerRevealClock.value = clock; }
 
   update(season) {
     const amount = season === 'winter' ? 0 : season === 'autumn' ? 0.4 : 1;

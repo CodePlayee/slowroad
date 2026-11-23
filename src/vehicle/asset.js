@@ -96,6 +96,7 @@ export function prepareVehicleAsset(vehicle, scene, env) {
     // shrink the vehicle or determine the wheel/road contact height.
     bounds.union(partBounds.setFromObject(mesh));
   });
+  splitTwoPassMaterials(root, (material) => vehicle.atmo.register(material));
   const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3());
   if (bounds.isEmpty() || !Number.isFinite(size.z) || size.z <= 0) throw new Error('Vehicle asset has invalid bounds');
@@ -116,10 +117,78 @@ export function prepareVehicleAsset(vehicle, scene, env) {
   vehicle.group.add(root);
   vehicle.asset = root;
   vehicle.assetWheels = wheels;
-  vehicle.assetMaterials = [...materials.values(), ...lamps.values()];
-  vehicle.lampMaterials = [...lamps.values()];
+  // Materials actually drawn (the glass now as its sided copies); the mirror
+  // keeps its own unlit material and no environment map.
+  const drawn = new Set();
+  root.traverse((mesh) => {
+    if (mesh.isMesh) for (const material of [mesh.material].flat()) if (material !== mirror) drawn.add(material);
+  });
+  vehicle.assetMaterials = [...drawn];
+  vehicle.lampMaterials = vehicle.assetMaterials.filter(material => material.userData.lampRole);
   vehicle.rearMirror = mirror;
   vehicle.assetEnvironment = env;
   vehicle.assetReady = true;
   vehicle.setCockpit(vehicle.cockpitMode || false);
+}
+
+const twoPass = material => material.transparent && material.side === THREE.DoubleSide && !material.forceSinglePass;
+
+/**
+ * three draws a transparent DoubleSide material in two passes (BackSide, then
+ * FrontSide) and flags it needsUpdate before each, re-resolving its program
+ * twice per draw on every frame. Replace each such mesh (per geometry group)
+ * with a BackSide mesh followed by a FrontSide mesh. Both share the geometry's
+ * bounding sphere and render order, and the back mesh is created first (lower
+ * id), so three's transparent sort (render order, depth, id) draws them in
+ * the same order as the two passes did, with constant material versions.
+ */
+export function splitTwoPassMaterials(root, register) {
+  const copies = new Map();
+  const sided = (material, side) => {
+    let pair = copies.get(material);
+    if (!pair) {
+      pair = [THREE.BackSide, THREE.FrontSide].map((s) => {
+        const copy = material.clone();
+        copy.side = s;
+        register(copy);
+        return copy;
+      });
+      copies.set(material, pair);
+    }
+    return pair[side === THREE.BackSide ? 0 : 1];
+  };
+  for (const mesh of [...root.children]) {
+    if (!mesh.isMesh) continue;
+    const list = [mesh.material].flat();
+    if (!list.some(twoPass)) continue;
+    const geometry = mesh.geometry;
+    if (!geometry.boundingSphere) geometry.computeBoundingSphere();
+    if (!geometry.boundingBox) geometry.computeBoundingBox();
+    const groups = Array.isArray(mesh.material) ? geometry.groups : [{ start: 0, count: Infinity, materialIndex: 0 }];
+    const parts = [];
+    for (const group of groups) {
+      let view = geometry;
+      if (Array.isArray(mesh.material)) {
+        view = new THREE.BufferGeometry();
+        for (const [name, attribute] of Object.entries(geometry.attributes)) view.setAttribute(name, attribute);
+        view.setIndex(geometry.index);
+        view.setDrawRange(group.start, group.count);
+        view.boundingSphere = geometry.boundingSphere;
+        view.boundingBox = geometry.boundingBox;
+      }
+      const material = list[group.materialIndex];
+      const sides = twoPass(material) ? [THREE.BackSide, THREE.FrontSide] : [null];
+      for (const side of sides) {
+        const part = new THREE.Mesh(view, side === null ? material : sided(material, side));
+        part.name = mesh.name;
+        part.userData = { ...mesh.userData };
+        part.position.copy(mesh.position); part.quaternion.copy(mesh.quaternion); part.scale.copy(mesh.scale);
+        part.renderOrder = mesh.renderOrder;
+        part.castShadow = mesh.castShadow; part.receiveShadow = mesh.receiveShadow;
+        parts.push(part);
+      }
+    }
+    mesh.removeFromParent();
+    root.add(...parts);
+  }
 }

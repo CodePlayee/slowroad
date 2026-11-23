@@ -1134,6 +1134,20 @@ export class Terrain {
   }
 
   /**
+   * True when the current required set holds every level-`level` chunk under the
+   * bounds, so coversBounds(..., level) is guaranteed to hold once they settle.
+   * Streaming consumers plan work beyond their own rings only under this ground.
+   */
+  plansBounds(x0, z0, x1, z1, level = 0) {
+    if (!this.requests || !(x1 > x0) || !(z1 > z0)) return false;
+    const l = Math.max(0, Math.min(P.levels - 1, Math.floor(level))), C = this.levelSize(l);
+    for (let j = Math.floor(z0 / C); j * C < z1; j++) for (let i = Math.floor(x0 / C); i * C < x1; i++) {
+      if (!this.requests.has(makeTile(this.version, l, i, j, P.chunkSize).key)) return false;
+    }
+    return true;
+  }
+
+  /**
    * Return true when the road corridor can touch a tile. A centre-only query
    * can miss a route that clips an edge or corner, so probe all five points.
    * The diagonal reach is conservative, while keeping refinement bounded to

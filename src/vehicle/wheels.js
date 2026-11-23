@@ -50,7 +50,7 @@ export function rigModelYWheels(root, scale) {
     wheel.rollGroup = new THREE.Group(); wheel.rollGroup.name = `${spec.name}_rolling`;
     wheel.add(wheel.rollGroup);
     Object.assign(wheel.userData, { front: spec.front, radius: spec.radius * scale,
-      lateral: (spec.center[0] - axleX) * scale, wheelbase });
+      lateral: (spec.center[0] - axleX) * scale, wheelbase, restY: spec.center[1] });
     return [spec.name, wheel];
   }));
   for (let i = 0; i < sources.length; i++) {
@@ -85,5 +85,17 @@ export function animateWheels(wheels, distance, roadCurvature, laneOffset = 0) {
     wheel.rotation.set(0, THREE.MathUtils.clamp(steering, -Math.PI / 5, Math.PI / 5), 0);
     // Positive X rotation rolls +Z travel forward; the bottom tread moves -Z.
     wheel.rollGroup.rotation.x = (distance / radius) % (2 * Math.PI);
+  }
+}
+
+// Suspension pose of each wheel: `compression[corner]` metres of upward travel
+// in the body frame (corners 0 LF, 1 RF, 2 LB, 3 RB; +X is the left side) and
+// a camber angle that keeps the wheel upright to the road while the body rolls.
+// `unit` is the parent's scale (metres per local unit).
+export function travelWheels(wheels, compression, camber, unit) {
+  for (const wheel of wheels) {
+    const { front, lateral, restY } = wheel.userData;
+    wheel.position.y = restY + compression[(front ? 0 : 2) + (lateral > 0 ? 0 : 1)] / unit;
+    wheel.rotation.z = camber;
   }
 }

@@ -7,6 +7,9 @@ const equal = (a, b) => {
 };
 const smoothstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const IDENTITY = new THREE.Matrix4();
+// Culling pass tokens are unique across cullers: batches and groups memoize
+// their per-pass validity/visibility answers against them.
+let passes = 0;
 
 function copyInstance(source, target, sourceIndex, targetIndex) {
   const start = Math.floor(sourceIndex / source.meshPerAttribute) * source.itemSize;
@@ -41,7 +44,10 @@ function grassBand(mesh) {
 }
 
 function grassHidden(matrix, index, shapes, band) {
-  const distance = Math.hypot(matrix[index * 16 + 12] - band[0], matrix[index * 16 + 14] - band[1]);
+  // sqrt rather than Math.hypot (several times slower in V8); the one-ulp
+  // difference is far inside the 1e-4 coverage margin below.
+  const dx = matrix[index * 16 + 12] - band[0], dz = matrix[index * 16 + 14] - band[1];
+  const distance = Math.sqrt(dx * dx + dz * dz);
   const near = 1 - smoothstep(62, 85, distance);
   const coverage = band[2] ? (1 - near) * (1 - smoothstep(240, 285, distance)) : near;
   const shape = shapes.array[Math.floor(index / shapes.meshPerAttribute) * shapes.itemSize];
@@ -83,12 +89,18 @@ export class InstanceCuller {
     this._origin = new THREE.Vector3();
     this._viewVersion = 0;
     this._viewSignature = null;
+    this._planes = new Float64Array(24);
+    this._mergeCandidates = [];
+    this._mergeUsed = [];
+    this._mergedShown = [];
+    this._buckets = new Map();
   }
 
   prepare(root, camera) {
     this.restore();
     Object.assign(this.stats, { totalInstances: 0, visibleInstances: 0, culledInstances: 0, batches: 0 });
     if (!this.enabled) return this.stats;
+    const pass = ++passes;
     root.updateWorldMatrix(true, false);
     camera.updateWorldMatrix(true, false);
     this._projection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
@@ -97,14 +109,17 @@ export class InstanceCuller {
       this._viewSignature = view;
       this._viewVersion++;
       this._frustum.setFromProjectionMatrix(this._projection, camera.coordinateSystem, camera.reversedDepth);
+      this._frustum.planes.forEach(({ normal: n, constant }, i) => this._planes.set([n.x, n.y, n.z, constant], i * 4));
     }
     root.traverseVisible((mesh) => {
       mesh.updateWorldMatrix(false, false);
       if (mesh.userData.cullBounds) {
-        if (mesh.userData.cullValid && !mesh.userData.cullValid()) return;
         this._box.copy(mesh.userData.cullBounds).applyMatrix4(mesh.matrixWorld)
           .expandByScalar(mesh.userData.cullPadding || 0);
-        if (!this._frustum.intersectsBox(this._box) || !mesh.userData.batchVisible(camera)) {
+        // Validity only guards hiding: a group that stays visible is descended
+        // either way, so stale bounds can never hide a mutated member.
+        if ((!this._frustum.intersectsBox(this._box) || !mesh.userData.batchVisible(camera, pass)) &&
+            (!mesh.userData.cullValid || mesh.userData.cullValid(pass))) {
           this._hidden.push(mesh); mesh.visible = false;
         }
         return;
@@ -113,7 +128,8 @@ export class InstanceCuller {
       const count = mesh.count;
       this.stats.totalInstances += count;
       this.stats.batches++;
-      if (mesh.userData.batchVisible && !mesh.userData.batchVisible(camera)) {
+      if (mesh.userData.instanceMerge) this._mergeCandidates.push(mesh);
+      if (mesh.userData.batchVisible && !mesh.userData.batchVisible(camera, pass)) {
         this._hidden.push(mesh); mesh.visible = false;
         return;
       }
@@ -128,7 +144,7 @@ export class InstanceCuller {
         return;
       }
       const fixed = mesh.userData;
-      if (fixed.staticCullBox && fixed.staticCullValid?.() && mesh.matrixWorld.equals(IDENTITY)) {
+      if (fixed.staticCullBox && fixed.staticCullValid?.(pass) && mesh.matrixWorld.equals(IDENTITY)) {
         this._box.copy(fixed.staticCullBox).expandByScalar(fixed.worldBoundsPadding || 0);
         if (!this._frustum.intersectsBox(this._box)) {
           this._hidden.push(mesh); mesh.visible = false;
@@ -218,8 +234,188 @@ export class InstanceCuller {
       // woodland replacements. The padded per-instance test is authoritative.
       mesh.frustumCulled = false;
     });
+    this._merge(root);
     this.stats.culledInstances = this.stats.totalInstances - this.stats.visibleInstances;
     return this.stats;
+  }
+
+  // Opted-in batches that share a material (forest impostors: one small batch
+  // per tile and species) are drawn as one instanced draw per material. Their
+  // already selected rows are concatenated into a culler-owned buffer; only
+  // members whose rows changed are recopied and uploaded. Members must have an
+  // identity world transform, so every row means the same thing in the merged
+  // draw, and nothing may depend on draw order or instance id within a material.
+  _merge(root) {
+    const candidates = this._mergeCandidates;
+    if (!candidates.length) return;
+    const used = this._mergeUsed;
+    if (root.matrixWorld.equals(IDENTITY)) {
+      for (const mesh of candidates) {
+        const material = mesh.material;
+        if (!mesh.visible || mesh.count <= 0 || Array.isArray(material) || mesh.instanceColor || mesh.morphTexture ||
+            mesh.onBeforeRender !== THREE.Object3D.prototype.onBeforeRender || !mesh.matrixWorld.equals(IDENTITY)) continue;
+        let bucket = this._buckets.get(material);
+        if (!bucket) {
+          bucket = { material, layout: null, names: null, members: [], segments: [], capacity: 0, mesh: null, geometry: null, idle: 0 };
+          this._buckets.set(material, bucket);
+        }
+        // The first member of a pass may re-key a bucket whose card geometry
+        // was replaced (e.g. reloaded assets); later mismatches stay separate.
+        if (!bucket.layout || (!bucket.members.length && !this._compatible(bucket, mesh))) {
+          this._releaseBucket(bucket);
+          bucket.layout = null;
+          this._bucketLayout(bucket, mesh);
+        }
+        if (!this._compatible(bucket, mesh)) continue;
+        if (!bucket.members.length) used.push(bucket);
+        bucket.members.push(mesh);
+      }
+    }
+    candidates.length = 0;
+    for (const bucket of used) {
+      // A lone batch gains nothing from a copy.
+      if (bucket.members.length > 1) this._drawBucket(root, bucket);
+      bucket.members.length = 0;
+    }
+    used.length = 0;
+    for (const [material, bucket] of this._buckets) {
+      if (bucket.idle++ > 600) { this._releaseBucket(bucket); this._buckets.delete(material); }
+    }
+  }
+
+  _bucketLayout(bucket, mesh) {
+    const geometry = mesh.geometry, layout = [geometry.index, geometry.drawRange.start, geometry.drawRange.count,
+      geometry.groups.length, mesh.renderOrder, mesh.layers.mask], names = [];
+    for (const name in geometry.attributes) {
+      if (!Object.hasOwn(geometry.attributes, name) || name.startsWith('_instanceCull')) continue;
+      const attribute = geometry.attributes[name];
+      if (attribute.isInstancedBufferAttribute) names.push(name);
+      else layout.push(name, attribute);
+    }
+    if (names.some(name => geometry.attributes[name].meshPerAttribute !== 1)) return;
+    bucket.layout = layout; bucket.names = names.sort();
+  }
+
+  _compatible(bucket, mesh) {
+    if (!bucket.layout) return false;
+    const geometry = mesh.geometry, layout = bucket.layout;
+    if (layout[0] !== geometry.index || layout[1] !== geometry.drawRange.start || layout[2] !== geometry.drawRange.count ||
+        layout[3] !== geometry.groups.length || layout[4] !== mesh.renderOrder || layout[5] !== mesh.layers.mask) return false;
+    let instanced = 0;
+    for (const name in geometry.attributes) {
+      if (!Object.hasOwn(geometry.attributes, name) || name.startsWith('_instanceCull')) continue;
+      const attribute = geometry.attributes[name];
+      if (attribute.isInstancedBufferAttribute) {
+        if (!bucket.names.includes(name) || attribute.meshPerAttribute !== 1) return false;
+        instanced++;
+      }
+    }
+    if (instanced !== bucket.names.length) return false;
+    for (let i = 6; i < layout.length; i += 2) if (geometry.attributes[layout[i]] !== layout[i + 1]) return false;
+    const reference = bucket.mesh?.geometry ?? null;
+    if (reference) for (const name of bucket.names) {
+      const a = geometry.attributes[name], b = reference.attributes[name];
+      if (a.itemSize !== b.itemSize || a.normalized !== b.normalized || a.array.constructor !== b.array.constructor) return false;
+    }
+    return true;
+  }
+
+  _drawBucket(root, bucket) {
+    const members = bucket.members;
+    // Fully visible batches draw their canonical, immutable rows; boundary
+    // batches draw compacted rows whose counts change as the camera moves.
+    // Stable canonical-first order keeps the long immutable prefix in place, so
+    // a moving camera only rewrites the boundary tail of the merged buffer.
+    const compacted = (mesh) => (this._states.get(mesh)?.saved ? 1 : 0);
+    members.sort((a, b) => compacted(a) - compacted(b) || a.id - b.id);
+    let total = 0;
+    for (const mesh of members) total += mesh.count;
+    if (total > bucket.capacity) this._allocateBucket(bucket, Math.max(total, Math.ceil(bucket.capacity * 1.5), 256), members[0]);
+    const merged = bucket.mesh, segments = bucket.segments, names = bucket.names;
+    // Segments are reusable up to the first member or count that differs.
+    let first = 0;
+    while (first < members.length && first < segments.length &&
+      segments[first].mesh === members[first] && segments[first].count === members[first].count) first++;
+    if (first < members.length || segments.length !== members.length) {
+      segments.length = members.length;
+      let offset = first > 0 ? segments[first - 1].offset + segments[first - 1].count : 0;
+      for (let i = first; i < members.length; i++) {
+        const segment = segments[i] ||= { mesh: null, count: 0, offset: 0, sources: [] };
+        segment.mesh = members[i]; segment.count = members[i].count; segment.offset = offset; segment.sources.length = 0;
+        offset += segment.count;
+      }
+    }
+    let dirtyStart = Infinity, dirtyEnd = 0;
+    for (const segment of segments) {
+      const mesh = segment.mesh, sources = segment.sources;
+      let same = sources.length === 2 + names.length * 2 && sources[0] === mesh.instanceMatrix && sources[1] === mesh.instanceMatrix.version;
+      for (let k = 0; same && k < names.length; k++) {
+        const attribute = mesh.geometry.attributes[names[k]];
+        same = sources[2 + k * 2] === attribute && sources[3 + k * 2] === attribute.version;
+      }
+      if (same) continue;
+      sources.length = 0;
+      sources.push(mesh.instanceMatrix, mesh.instanceMatrix.version);
+      merged.instanceMatrix.array.set(mesh.instanceMatrix.array.subarray(0, segment.count * 16), segment.offset * 16);
+      for (const name of names) {
+        const attribute = mesh.geometry.attributes[name], target = merged.geometry.attributes[name];
+        sources.push(attribute, attribute.version);
+        target.array.set(attribute.array.subarray(0, segment.count * attribute.itemSize), segment.offset * attribute.itemSize);
+      }
+      dirtyStart = Math.min(dirtyStart, segment.offset);
+      dirtyEnd = Math.max(dirtyEnd, segment.offset + segment.count);
+    }
+    if (dirtyEnd > 0) {
+      for (const attribute of [merged.instanceMatrix, ...names.map(name => merged.geometry.attributes[name])]) {
+        attribute.addUpdateRange(dirtyStart * attribute.itemSize, (dirtyEnd - dirtyStart) * attribute.itemSize);
+        attribute.needsUpdate = true;
+      }
+    }
+    merged.count = total;
+    for (const mesh of members) { this._hidden.push(mesh); mesh.visible = false; }
+    bucket.idle = 0;
+    root.add(merged);
+    this._mergedShown.push(merged);
+  }
+
+  _allocateBucket(bucket, capacity, sample) {
+    this._releaseBucket(bucket);
+    const geometry = new THREE.BufferGeometry();
+    geometry.name = `${bucket.material.name || 'vegetation'}-merged-instances`;
+    for (let i = 6; i < bucket.layout.length; i += 2) geometry.setAttribute(bucket.layout[i], bucket.layout[i + 1]);
+    geometry.setIndex(bucket.layout[0]);
+    geometry.setDrawRange(bucket.layout[1], bucket.layout[2]);
+    for (const name of bucket.names) {
+      const source = sample.geometry.attributes[name];
+      const attribute = new THREE.InstancedBufferAttribute(new source.array.constructor(capacity * source.itemSize),
+        source.itemSize, source.normalized, 1);
+      attribute.gpuType = source.gpuType;
+      attribute.setUsage(THREE.DynamicDrawUsage);
+      geometry.setAttribute(name, attribute);
+    }
+    const mesh = new THREE.InstancedMesh(geometry, bucket.material, capacity);
+    mesh.name = geometry.name;
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    mesh.matrixAutoUpdate = false;
+    mesh.frustumCulled = false;
+    mesh.castShadow = sample.castShadow; mesh.receiveShadow = sample.receiveShadow;
+    mesh.renderOrder = sample.renderOrder; mesh.layers.mask = sample.layers.mask;
+    // Members are already culled; keep three from scanning every row for a bound.
+    mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(), Infinity);
+    mesh.userData.mergedInstances = true;
+    bucket.mesh = mesh; bucket.geometry = geometry; bucket.capacity = capacity; bucket.segments.length = 0;
+  }
+
+  _releaseBucket(bucket) {
+    if (!bucket.mesh) return;
+    bucket.mesh.removeFromParent();
+    for (const name of Object.keys(bucket.geometry.attributes)) {
+      if (!bucket.names.includes(name)) bucket.geometry.deleteAttribute(name);
+    }
+    bucket.geometry.setIndex(null);
+    bucket.geometry.dispose();
+    bucket.mesh.dispose();
+    bucket.mesh = null; bucket.geometry = null; bucket.capacity = 0; bucket.segments.length = 0;
   }
 
   _state(mesh) {
@@ -308,11 +504,15 @@ export class InstanceCuller {
     let count = 0;
     let changedStart = Infinity, changedEnd = 0;
     const shapes = mesh.geometry.getAttribute('iShape');
+    // Inlined Frustum.intersectsSphere with identical arithmetic order; this is
+    // the per-instance hot loop whenever the camera moves.
+    const p = this._planes, bounds = state.bounds;
     for (let index = 0; index < mesh.count; index++) {
       const offset = index * 4;
-      this._sphere.center.fromArray(state.bounds, offset);
-      this._sphere.radius = state.bounds[offset + 3];
-      if (!this._frustum.intersectsSphere(this._sphere)) continue;
+      const x = bounds[offset], y = bounds[offset + 1], z = bounds[offset + 2], r = -bounds[offset + 3];
+      if (p[0] * x + p[1] * y + p[2] * z + p[3] < r || p[4] * x + p[5] * y + p[6] * z + p[7] < r ||
+          p[8] * x + p[9] * y + p[10] * z + p[11] < r || p[12] * x + p[13] * y + p[14] * z + p[15] < r ||
+          p[16] * x + p[17] * y + p[18] * z + p[19] < r || p[20] * x + p[21] * y + p[22] * z + p[23] < r) continue;
       if (mesh.userData.instanceVisible && !mesh.userData.instanceVisible(index, camera)) continue;
       if (band && grassHidden(mesh.instanceMatrix.array, index, shapes, band)) continue;
       // Re-entering slots may contain stale data from before a source update.
@@ -346,6 +546,8 @@ export class InstanceCuller {
   }
 
   restore() {
+    for (const mesh of this._mergedShown) mesh.removeFromParent();
+    this._mergedShown.length = 0;
     for (let i = 0; i < this._batchCounts.length; i += 3) {
       this._batchCounts[i].count = this._batchCounts[i + 1];
       this._batchCounts[i].frustumCulled = this._batchCounts[i + 2];
@@ -373,6 +575,8 @@ export class InstanceCuller {
   dispose() {
     this.restore();
     for (const state of this._states.values()) this._release(state);
+    for (const bucket of this._buckets.values()) this._releaseBucket(bucket);
+    this._buckets.clear();
     this._layoutScratch.length = 0;
   }
 }

@@ -55,3 +55,34 @@ test('group checks cannot hide newly mutated member geometry behind stale bounds
   assert.equal(group.visible, true); assert.equal(m.visible, true); assert.equal(m.count, 1);
   culler.dispose(); m.geometry.dispose(); m.material.dispose();
 });
+
+test('scene matrix updates keep member world matrices exact while skipping static subtrees', () => {
+  const a = mesh(0, 0), b = mesh(10, 0);
+  a.matrixAutoUpdate = false; b.matrixAutoUpdate = false;
+  const group = groupFoliage([a, b]), root = new THREE.Group(), scene = new THREE.Scene();
+  root.add(group); scene.add(root);
+  const worldOf = (object) => new THREE.Matrix4().copy(object.matrixWorld);
+  const expected = (object) => { const m = new THREE.Matrix4(); let o = object; const chain = [];
+    while (o) { chain.unshift(o); o = o.parent; }
+    for (const node of chain) m.multiply(node.matrix); return m; };
+  scene.updateMatrixWorld();
+  assert.ok(worldOf(a).equals(expected(a)));
+  // Moving an ancestor reaches static members, also while their group is culled.
+  root.position.set(5, 1, -3); root.updateMatrix();
+  group.visible = false;
+  scene.updateMatrixWorld();
+  group.visible = true;
+  assert.ok(worldOf(b).equals(expected(b)));
+  // A member that changes its own transform is updated without the group moving.
+  b.position.x = 2; b.updateMatrix();
+  scene.updateMatrixWorld();
+  assert.ok(worldOf(b).equals(expected(b)));
+  // An unmoved hidden subtree is skipped; the culler's visit still settles a dirty member.
+  group.visible = false;
+  a.position.z = 4; a.updateMatrix();
+  scene.updateMatrixWorld();
+  group.visible = true;
+  a.updateWorldMatrix(false, false);
+  assert.ok(worldOf(a).equals(expected(a)));
+  a.geometry.dispose(); a.material.dispose(); b.geometry.dispose(); b.material.dispose();
+});

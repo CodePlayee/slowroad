@@ -61,6 +61,12 @@ export class WaterSystem {
       depthWrite: false,
     });
     this.material.name = 'water';
+    // three draws transparent double-sided materials as two passes (back, then
+    // front) and flags the material for a program re-resolve before each pass,
+    // so every water tile cost two draws and two program lookups per frame. The
+    // surface is a near-flat sheet seen from above: a pixel never holds both a
+    // front and a back face, so one pass composites identically.
+    this.material.forceSinglePass = true;
     // Sky reflection: without it a river reads as flat pale plastic. vFogWorldPos comes
     // from our global fog chunk; vNormal is view space, so it is brought to world space
     // before meeting the world view ray. The floor keeps a steep look-down mirroring

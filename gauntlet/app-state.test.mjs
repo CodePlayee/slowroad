@@ -15,6 +15,8 @@ registerHooks({ load(url, context, next) {
 const { Hud } = await import('../src/ui/hud.js');
 const { Atmosphere } = await import('../src/atmosphere/atmosphere.js');
 const { Vehicle } = await import('../src/vehicle/vehicle.js');
+const { Suspension } = await import('../src/vehicle/suspension.js');
+const { Handling } = await import('../src/vehicle/handling.js');
 const { VEHICLE } = await import('../src/vehicle/params.js');
 const { CameraRig } = await import('../src/camera/cameras.js');
 const { World } = await import('../src/world/world.js');
@@ -65,7 +67,9 @@ function vehicleFixture() {
   const world = new World(7).build();
   const vehicle = Object.assign(Object.create(Vehicle.prototype), {
     world, route: world.route, atmo: { palette: { dayness: 1 } },
-    group: new THREE.Group(), pos: new THREE.Vector3(), _q: {},
+    group: new THREE.Group(), pos: new THREE.Vector3(), _q: {}, _qt: {}, _qa: {}, _qb: {},
+    suspension: new Suspension(VEHICLE.suspension, { track: VEHICLE.trackWidth, wheelbase: VEHICLE.wheelbase }),
+    handling: new Handling(VEHICLE.handling, { wheelbase: VEHICLE.wheelbase, laneOffset: VEHICLE.laneOffset }),
     speed: VEHICLE.cruiseKph / 3.6,
     wheels: [], assetWheels: [], assetMaterials: [new THREE.MeshStandardMaterial()],
     headlight: new THREE.SpotLight(), lampF: new THREE.MeshStandardMaterial(),

@@ -5,23 +5,24 @@ import { hash2i, u2f } from './rng.js';
 
 const F = (t) => t * t * t * (t * (t * 6 - 15) + 10);
 
+// The 8 evenly spread gradient directions of gnoise, (h & 7) * PI/4. Tables
+// hold the very values Math.cos/Math.sin return for those angles, so lookups
+// give bit-identical noise without a closure and two transcendentals per corner.
+const GRAD_X = Float64Array.from({ length: 8 }, (_, k) => Math.cos(k * 0.7853981633974483));
+const GRAD_Y = Float64Array.from({ length: 8 }, (_, k) => Math.sin(k * 0.7853981633974483));
+
 /** 2D gradient (Perlin-style) noise in [-1,1]. */
 export function gnoise(x, y, seed = 0) {
   const xi = Math.floor(x), yi = Math.floor(y);
   const xf = x - xi, yf = y - yi;
   const u = F(xf), v = F(yf);
 
-  const g = (ix, iy, dx, dy) => {
-    const h = hash2i(ix, iy, seed);
-    // 8 evenly spread gradient directions
-    const a = (h & 7) * 0.7853981633974483;
-    return Math.cos(a) * dx + Math.sin(a) * dy;
-  };
-
-  const n00 = g(xi, yi, xf, yf);
-  const n10 = g(xi + 1, yi, xf - 1, yf);
-  const n01 = g(xi, yi + 1, xf, yf - 1);
-  const n11 = g(xi + 1, yi + 1, xf - 1, yf - 1);
+  const h00 = hash2i(xi, yi, seed) & 7, h10 = hash2i(xi + 1, yi, seed) & 7;
+  const h01 = hash2i(xi, yi + 1, seed) & 7, h11 = hash2i(xi + 1, yi + 1, seed) & 7;
+  const n00 = GRAD_X[h00] * xf + GRAD_Y[h00] * yf;
+  const n10 = GRAD_X[h10] * (xf - 1) + GRAD_Y[h10] * yf;
+  const n01 = GRAD_X[h01] * xf + GRAD_Y[h01] * (yf - 1);
+  const n11 = GRAD_X[h11] * (xf - 1) + GRAD_Y[h11] * (yf - 1);
 
   const nx0 = n00 + (n10 - n00) * u;
   const nx1 = n01 + (n11 - n01) * u;

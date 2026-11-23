@@ -3,7 +3,15 @@ import { generatePopulation } from './population.js';
 
 let world = null, epoch = 0;
 const active = new Set(), cancelled = new Set();
-const pause = () => new Promise(resolve => setTimeout(resolve, 0));
+// Yield one task so queued cancel/init messages can run. Nested setTimeout(0)
+// is clamped to >= 4 ms, which left this loop idle a third of the time between
+// its 8 ms slices; a channel message resumes on the next task instead. A closed
+// per-pause channel keeps no handle alive (Node tests) and cannot cross builds.
+const pause = () => new Promise(resolve => {
+  const channel = new MessageChannel();
+  channel.port1.onmessage = () => { channel.port1.close(); resolve(); };
+  channel.port2.postMessage(0);
+});
 
 self.onmessage = async ({ data: message }) => {
   if (message.type === 'init') {

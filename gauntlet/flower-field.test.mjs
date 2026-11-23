@@ -13,6 +13,7 @@ registerHooks({ load(url, context, next) {
     : next(url, context);
 } });
 const { FlowerField, FLOWER_RANGE } = await import('../src/vegetation/flowerField.js');
+const { GRASS_REVEAL } = await import('../src/vegetation/grassField.js');
 const { InstanceCuller } = await import('../src/vegetation/instanceCulling.js');
 
 function sourceScene() {
@@ -217,7 +218,9 @@ test('flower population failures release both complete and partially populated m
   assert.equal(field.meshes.size, 0);
   assert.equal(disposedMeshes.length, 2);
   assert.equal(disposedGeometry.length, 2);
-  assert.ok(disposedGeometry.every(geometry => geometry.index === null && Object.keys(geometry.attributes).length === 0));
+  // Cells drop every borrowed template buffer; only their own per-instance data is released with them.
+  assert.ok(disposedGeometry.every(geometry => geometry.index === null
+    && Object.values(geometry.attributes).every(attribute => attribute.isInstancedBufferAttribute)));
   assert.strictEqual(field.geometry.stem.getAttribute('position'), sourcePosition);
   assert.strictEqual(field.geometry.stem.index, sourceIndex);
   populate.mock.restore();
@@ -236,7 +239,8 @@ test('flower geometry setup failures release an unowned cell wrapper without del
   finally { Object.defineProperty(blossom, 'attributes', descriptor); }
   assert.equal(field.meshes.size, 0);
   assert.equal(disposedGeometry.length, 2);
-  assert.ok(disposedGeometry.every(geometry => geometry.index === null && Object.keys(geometry.attributes).length === 0));
+  assert.ok(disposedGeometry.every(geometry => geometry.index === null
+    && Object.values(geometry.attributes).every(attribute => attribute.isInstancedBufferAttribute)));
   assert.ok(field.geometry.stem.index && blossom.index);
 });
 
@@ -317,4 +321,22 @@ test('failed cluster preparation releases cloned and loader-owned geometry witho
   assert.equal(clones.length, 2);
   assert.ok([...disposed.values()].every(count => count === 1));
   assert.ok(source.resources.every(resource => source.counts.get(resource) === 1));
+});
+
+test('built flowers stand fully grown until a reveal starts their grow-in on the shared clock', async t => {
+  const { field, resolve } = fixture(t), source = sourceScene();
+  resolve(source.gltf); await field.assetPromise;
+  const meshes = field.build(records);
+  assert.equal(meshes.length, 2);
+  for (const mesh of meshes) {
+    const reveal = mesh.geometry.getAttribute('iFlowerReveal');
+    assert.ok(reveal.isInstancedBufferAttribute);
+    assert.ok(reveal.array.every(value => value === GRASS_REVEAL.settled));
+    const version = reveal.version;
+    field.reveal(mesh, 4.25);
+    assert.ok(reveal.array.every(value => value === 4.25));
+    assert.ok(reveal.version > version);
+  }
+  field.setRevealClock(5);
+  assert.equal(field.uniforms.uFlowerRevealClock.value, 5);
 });

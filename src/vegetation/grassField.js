@@ -15,6 +15,10 @@ const LOCAL_PADDING = 0.16;
 export const GRASS_RENDER_CELL = 16;
 export const GRASS_DENSITY = Object.freeze({ low: 4, high: 26, minimum: 0.25, transition: 0.04,
   nearStart: 28, nearEnd: 56 });
+// A tile that appears while driving fills in over `seconds` instead of popping:
+// each tuft widens over the last (1 - stagger) of the fade, starting in rank
+// order. Instances keep `settled` (fully present) unless a reveal is started.
+export const GRASS_REVEAL = Object.freeze({ seconds: 0.8, stagger: 0.7, settled: -1e9 });
 // Pasture tufts widen their leaves at most this much; the rest of the density
 // and detail compensation spreads the tuft footprint instead (GRASS_PASTURE).
 export const PASTURE_LEAF_COMPENSATION = 1.8;
@@ -323,6 +327,8 @@ attribute vec4 iGrassStyle;
 attribute float iGrassRoad;
 attribute float iGrassMaturity;
 attribute float iGrassRank;
+attribute float iGrassReveal;
+uniform float uGrassRevealClock;
 uniform float uGrassTime;
 uniform float uGrassFocalPixels;
 uniform vec3 uGrassLush;
@@ -349,6 +355,8 @@ const VERTEX_BODY = /* glsl */`
   if (aBladeParam.w < 0.5 || aBladeParam.w > 1.5) detail *= 1.0 - uGrassSnow;
   if (aBladeParam.w > 2.5) detail *= iGrassMaturity * uGrassSeedGrowth;
   float farWidth = grassViewCoverage(grassDistance) * smoothstep(1.1, 3.0, grassPixels) * iGrassRoad;
+  farWidth *= smoothstep(0.0, 1.0, ((uGrassRevealClock - iGrassReveal) / ${GRASS_REVEAL.seconds.toFixed(2)}
+    - max(iGrassRank, 0.0) * ${GRASS_REVEAL.stagger.toFixed(2)}) / ${(1 - GRASS_REVEAL.stagger).toFixed(2)});
   // Winter: only scattered tufts in the densest clumps break the snowpack;
   // metre-scale cells thin each patch so it never reads as a hard-edged mat.
   float grassWinterTuft = grassWinterExposure(iGrassStyle.z) * smoothstep(0.45, 0.80, surfaceHash(floor(grassRoot.xz * 0.85)));
@@ -451,6 +459,7 @@ export class GrassField {
       uGrassWrap: { value: 0.025 },
       uGrassNight: { value: 0 },
       uGrassKeyElevation: { value: 1 },
+      uGrassRevealClock: { value: 0 },
     };
     this.material = new THREE.MeshStandardMaterial({
       name: 'field-grass', vertexColors: true, roughness: 0.97,
@@ -544,7 +553,7 @@ export class GrassField {
           #include <opaque_fragment>`);
     };
     this.material.onBeforeCompile = this._compile;
-    this.material.customProgramCacheKey = () => 'field-grass-cell-density-v17';
+    this.material.customProgramCacheKey = () => 'field-grass-cell-density-v18';
     this.pastureMaterial = null;
     atmo?.register?.(this.material);
   }
@@ -557,7 +566,7 @@ export class GrassField {
     material.defines = { GRASS_PASTURE: '' };
     material.userData = { uniforms: this.uniforms };
     material.onBeforeCompile = this._compile;
-    material.customProgramCacheKey = () => 'field-grass-pasture-cell-density-v1';
+    material.customProgramCacheKey = () => 'field-grass-pasture-cell-density-v2';
     this.atmo?.register?.(material);
     return (this.pastureMaterial = material);
   }
@@ -620,6 +629,8 @@ export class GrassField {
     geometry.setAttribute('iGrassMaturity', new THREE.InstancedBufferAttribute(maturity, 1));
     const ranks = new Float32Array(records.length);
     geometry.setAttribute('iGrassRank', new THREE.InstancedBufferAttribute(ranks, 1));
+    geometry.setAttribute('iGrassReveal', new THREE.InstancedBufferAttribute(
+      new Float32Array(records.length).fill(GRASS_REVEAL.settled), 1));
     const mesh = new THREE.InstancedMesh(geometry, pasture ? this._pastureMaterial() : this.material, records.length);
     mesh.name = pasture ? 'field-grass-pasture' : 'field-grass';
     mesh.addEventListener('dispose', () => this.meshes.delete(mesh));
@@ -733,6 +744,16 @@ export class GrassField {
       if (!completed) this.disposeMesh(mesh);
     }
   }
+
+  /** Start this mesh's fill-in at `clock` seconds of the reveal clock (setRevealClock). */
+  reveal(mesh, clock) {
+    const attribute = mesh.geometry?.getAttribute('iGrassReveal');
+    if (!attribute || !Number.isFinite(clock)) return;
+    attribute.array.fill(clock);
+    attribute.needsUpdate = true;
+  }
+
+  setRevealClock(clock) { this.uniforms.uGrassRevealClock.value = clock; }
 
   update(camera, time, seasonName, viewportHeight) {
     this.uniforms.uGrassTime.value = Number.isFinite(time) ? time : 0;

@@ -4,6 +4,7 @@ import { TERRAIN } from '../terrain/params.js';
 import { farRidgeShape, farRidgeEnvelope, farRidgeOffset, farRidgeGlsl } from '../terrain/farRidge.js';
 import { TREE_SPECIES, isEvergreenSpecies } from './treeSpecies.js';
 import { shrubVariant } from './params.js';
+import { GRASS_REVEAL } from './grassField.js';
 const IDENTITY_MATRIX = new THREE.Matrix4();
 
 export const FOREST_LOD = Object.freeze({ tree: { low: 160, high: 260, fadeStart: 1800, fadeEnd: 2000 },
@@ -82,15 +83,18 @@ function createVisibilityCache(population, bounds, sphere, heights) {
         this.x = x; this.y = y; this.z = z; this.pixelScale = pixelScale;
         if (++this.version > 0xffffffff) { versions.fill(0); this.version = 1; }
         this.distance = sphere.center.distanceTo(camera.position);
-        this.horizontalDistance = Math.hypot(Math.max(bounds.min.x - x, 0, x - bounds.max.x),
-          Math.max(bounds.min.z - z, 0, z - bounds.max.z));
+        const hx = Math.max(bounds.min.x - x, 0, x - bounds.max.x), hz = Math.max(bounds.min.z - z, 0, z - bounds.max.z);
+        this.horizontalDistance = Math.sqrt(hx * hx + hz * hz);
       }
       return this;
     },
     projected(index) {
       if (versions[index] !== this.version) {
         const record = population[index];
-        const horizontal = Math.hypot(record.x - this.x, record.z - this.z);
+        // sqrt instead of Math.hypot (several times slower in V8): at most one
+        // ulp apart, far inside the +-0.01 px margins of every LOD cutoff.
+        const dx = record.x - this.x, dz = record.z - this.z;
+        const horizontal = Math.sqrt(dx * dx + dz * dz);
         let lift = 0;
         if (horizontal > TERRAIN.farRidgeNear) {
           if (Number.isNaN(ridges[index])) ridges[index] = farRidgeShape(record.x, record.z);
@@ -98,7 +102,8 @@ function createVisibilityCache(population, bounds, sphere, heights) {
           lift = envelope === 0 ? 0 : ridges[index] * envelope;
         }
         const height = heights[index];
-        const distance = Math.hypot(record.x - this.x, record.y + lift + height * 0.5 - this.y, record.z - this.z);
+        const dy = record.y + lift + height * 0.5 - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
         pixels[index] = height * this.pixelScale / Math.max(0.5, distance);
         versions[index] = this.version;
       }
@@ -124,7 +129,7 @@ function sharedGeometry(source) {
 
 function disposeFieldGeometry(geometry) {
   // Wrappers borrow authored attributes; only their per-instance data is owned.
-  for (const name of Object.keys(geometry.attributes)) if (name !== 'iFoliage') geometry.deleteAttribute(name);
+  for (const name of Object.keys(geometry.attributes)) if (name !== 'iFoliage' && name !== 'iFoliageReveal') geometry.deleteAttribute(name);
   geometry.setIndex(null);
   geometry.dispose();
 }
@@ -233,6 +238,8 @@ export function makeFoliageMaterial(template, part, uniforms, atmo) {
     Object.assign(shader.uniforms, uniforms, { uFoliageLod: lod, uFoliageNormalMap: normalMap, uFoliageCrown: crown });
     shader.vertexShader = shader.vertexShader.replace('#include <common>', `#include <common>
       attribute vec4 iFoliage;
+      attribute float iFoliageReveal;
+      uniform float uFoliageRevealClock;
       uniform float uFoliageTime;
       uniform float uFoliagePixelScale;
       uniform vec4 uFoliageLod;
@@ -264,6 +271,8 @@ export function makeFoliageMaterial(template, part, uniforms, atmo) {
       float foliageBlend = smoothstep(uFoliageLod.x, uFoliageLod.y, foliagePixels);
       vFoliageCoverage = ${far ? 'min(1.0, (1.0 - foliageBlend) * 2.0)' : 'min(1.0, foliageBlend * 2.0)'};
       vFoliageCoverage *= 1.0 - smoothstep(uFoliageLod.z, uFoliageLod.w, foliageDistance);
+      // A late tile dissolves in over the reveal (settled instances keep exactly 1).
+      vFoliageCoverage *= smoothstep(0.0, ${GRASS_REVEAL.seconds.toFixed(2)}, uFoliageRevealClock - iFoliageReveal);
       vFoliageView = mod(foliageAngle / 6.28318530718 + 1.0, 1.0) * 8.0;
       vFoliageTint = 0.86 + iFoliage.w * 0.20;
       vFoliageGroundHeight = position.y * iFoliage.x;
@@ -439,7 +448,7 @@ export function makeFoliageMaterial(template, part, uniforms, atmo) {
       #include <opaque_fragment>
     `);
   };
-  material.customProgramCacheKey = () => `forest-field-crown-light-v9-${template.kind}-${template.species}-${template.growthForm || 'woody'}-${part}`;
+  material.customProgramCacheKey = () => `forest-field-crown-light-v10-${template.kind}-${template.species}-${template.growthForm || 'woody'}-${part}`;
   try { atmo.register(material); }
   catch (error) { material.dispose(); throw error; }
   return material;
@@ -460,7 +469,8 @@ export class ForestField {
     this.uniforms = { uFoliageTime: { value: 0 }, uFoliagePixelScale: { value: 1000 },
       uFoliageTint: { value: new THREE.Color(1, 1, 1) }, uFoliageSnow: { value: 0 }, uFoliageBare: { value: 0 },
       uFoliageAutumn: { value: 0 }, uFoliageLightDir: { value: new THREE.Vector3(0, 1, 0) },
-      uFoliageLightColor: { value: new THREE.Color(0, 0, 0) }, uFoliageNight: { value: 0 }, uFoliageBacklight: { value: 0 } };
+      uFoliageLightColor: { value: new THREE.Color(0, 0, 0) }, uFoliageNight: { value: 0 }, uFoliageBacklight: { value: 0 },
+      uFoliageRevealClock: { value: 0 } };
     this.assetPromise = Promise.resolve().then(() => loadAssets(renderer)).then(async assets => {
       if (this.disposed) { assets.dispose(); return; }
       this._pendingAssets = assets; this._initializing = true;
@@ -534,6 +544,8 @@ export class ForestField {
           const geometry = sharedGeometry(source);
           const attributes = new Float32Array(population.length * 4);
           geometry.setAttribute('iFoliage', new THREE.InstancedBufferAttribute(attributes, 4));
+          geometry.setAttribute('iFoliageReveal', new THREE.InstancedBufferAttribute(
+            new Float32Array(population.length).fill(GRASS_REVEAL.settled), 1));
           const mesh = new THREE.InstancedMesh(geometry, this.materials.get(key)[part], population.length);
           this.meshes.add(mesh);
           result.push(mesh);
@@ -544,6 +556,10 @@ export class ForestField {
           mesh.receiveShadow = false;
           mesh.userData.population = population;
           mesh.userData.foliageLevel = far ? 'far' : 'near';
+          // One impostor batch per tile and species: let the culler draw all
+          // selected impostors of a species as one instanced draw. Order-free:
+          // opaque alpha-to-coverage cards with depth writes, identity transforms.
+          if (far) mesh.userData.instanceMerge = true;
           mesh.userData.instanceVisibilityVersion = 0;
           mesh.userData.foliageMaximumHeight = maximumHeight;
           mesh.userData.foliageKind = kind;
@@ -554,7 +570,13 @@ export class ForestField {
             const distance = heights[index] * this.pixelScale / Math.max(pixels, 1e-8);
             return distance <= range.fadeEnd + 1;
           };
-          mesh.userData.batchVisible = (camera) => {
+          let visiblePass, visible = false;
+          mesh.userData.batchVisible = (camera, pass) => {
+            if (pass !== undefined && pass === visiblePass) return visible;
+            visiblePass = pass;
+            return visible = batchVisible(camera);
+          };
+          const batchVisible = (camera) => {
             if (part === 'leaf' && !isEvergreenSpecies(template.species) && this.uniforms.uFoliageBare.value >= 1) return false;
             // Ferns and tussocks die back under the snowpack.
             if (template.winterBuried && this.uniforms.uFoliageSnow.value > 0) return false;
@@ -589,19 +611,23 @@ export class ForestField {
           const local = geometry.boundingSphere.clone().expandByPoint(new THREE.Vector3());
           const reach = (local.radius + 0.25 + local.center.distanceTo(new THREE.Vector3(0, 0.5, 0))) * maximumScale + 0.01;
           mesh.userData.staticCullBox = bounds.clone().expandByScalar(reach);
-          mesh.userData.staticCullGeometry = geometry;
-          mesh.userData.staticCullMatrix = mesh.instanceMatrix;
-          mesh.userData.staticCullVersion = mesh.instanceMatrix.version;
-          mesh.userData.staticCullCount = mesh.count;
-          mesh.userData.staticCullPositionVersion = geometry.attributes.position.version;
-          const positionAttribute = geometry.attributes.position;
+          const instanceMatrix = mesh.instanceMatrix, matrixVersion = instanceMatrix.version, count = mesh.count;
+          const positionAttribute = geometry.attributes.position, positionVersion = positionAttribute.version;
           const foliageAttribute = geometry.attributes.iFoliage;
-          mesh.userData.staticCullValid = () => mesh.geometry === geometry &&
-            mesh.instanceMatrix === mesh.userData.staticCullMatrix &&
-            mesh.instanceMatrix.version === mesh.userData.staticCullVersion &&
-            mesh.count === mesh.userData.staticCullCount && mesh.matrix.equals(IDENTITY_MATRIX) &&
-            geometry.attributes.position === positionAttribute && positionAttribute.version === mesh.userData.staticCullPositionVersion &&
-            geometry.attributes.iFoliage === foliageAttribute && foliageAttribute.version === 0;
+          // Every visible tile's batches are validated each frame; build-time
+          // values stay in the closure instead of dictionary-mode userData.
+          // Group validation and the culler's batch path both ask within one
+          // culling pass; the pass token avoids validating every batch twice.
+          let validPass, valid = false;
+          mesh.userData.staticCullValid = (pass) => {
+            if (pass !== undefined && pass === validPass) return valid;
+            validPass = pass;
+            return valid = mesh.geometry === geometry && mesh.instanceMatrix === instanceMatrix &&
+              instanceMatrix.version === matrixVersion && mesh.count === count &&
+              geometry.attributes.position === positionAttribute && positionAttribute.version === positionVersion &&
+              geometry.attributes.iFoliage === foliageAttribute && foliageAttribute.version === 0 &&
+              mesh.matrix.equals(IDENTITY_MATRIX);
+          };
           yield;
         }
       }
@@ -651,6 +677,16 @@ export class ForestField {
     // Transmission rim only for a low sun; a high sun is never behind the crowns.
     this.uniforms.uFoliageBacklight.value = day ? 0.24 * palette.dayness * (1 - smoothstep(0.10, 0.45, atmo.sunDir.y)) : 0;
   }
+
+  /** Start this mesh's dissolve-in at `clock` seconds of the reveal clock (setRevealClock). */
+  reveal(mesh, clock) {
+    const attribute = mesh.geometry?.getAttribute('iFoliageReveal');
+    if (!attribute || !Number.isFinite(clock)) return;
+    attribute.array.fill(clock);
+    attribute.needsUpdate = true;
+  }
+
+  setRevealClock(clock) { this.uniforms.uFoliageRevealClock.value = clock; }
 
   disposeMesh(mesh) {
     if (!this.meshes.delete(mesh)) return;

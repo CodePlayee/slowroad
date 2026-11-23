@@ -16,6 +16,7 @@ const { IMPOSTOR, impostorBounds, withRendererState } = await import('../src/veg
 const { ForestField, FOREST_LOD, foliageCoverage, foliageTemplateKey, projectedPlantHeight, foliageRidgeOffset,
   makeFoliageMaterial } = await import('../src/vegetation/forestField.js');
 const { TERRAIN } = await import('../src/terrain/params.js');
+const { GRASS_REVEAL } = await import('../src/vegetation/grassField.js');
 
 test('coverage mips retain cutout coverage without introducing transparent-edge color', () => {
   const pixels = new Uint8Array(16 * 16 * 4);
@@ -214,6 +215,29 @@ test('cooperative forest builders retain identical matrices and release every ca
   field.dispose(); source.dispose();
 });
 
+test('foliage built settled; a reveal dissolves one mesh in from the reveal clock without touching others', () => {
+  const { field, source } = fakeField();
+  field.uniforms.uFoliageRevealClock = { value: 0 };
+  const records = [0, 1].map(i => ({ id: `pine-${i}`, species: 'pine', x: i * 30, y: 2, z: 80, height: 10,
+    width: 7, yaw: i, rank: 0.5, phase: i }));
+  const [first, ...others] = field.build(records);
+  for (const mesh of [first, ...others]) {
+    const reveal = mesh.geometry.getAttribute('iFoliageReveal');
+    assert.equal(reveal.count, records.length);
+    assert.ok(reveal.array.every(value => value === GRASS_REVEAL.settled), 'captures and holds draw fully present foliage');
+  }
+  const version = first.geometry.getAttribute('iFoliageReveal').version;
+  field.reveal(first, 12.5);
+  field.setRevealClock(13);
+  assert.ok(first.geometry.getAttribute('iFoliageReveal').array.every(value => value === 12.5));
+  assert.ok(first.geometry.getAttribute('iFoliageReveal').version > version, 'the culler re-copies changed instances');
+  assert.ok(others.every(mesh => mesh.geometry.getAttribute('iFoliageReveal').array[0] === GRASS_REVEAL.settled));
+  assert.equal(field.uniforms.uFoliageRevealClock.value, 13);
+  for (const mesh of [...field.meshes]) field.disposeMesh(mesh);
+  assert.ok(source.getAttribute('position') && source.index);
+  field.dispose(); source.dispose();
+});
+
 test('near and far shaders share ridge lift, coherent wind and post-cutout coverage', () => {
   const { template, source, field } = fakeField();
   const atmo = { register() {} };
@@ -407,8 +431,9 @@ test('representations share lazy LOD calculations and reuse ridge shape after ca
   let trigonometry = 0, distances = 0, squareRoots = 0;
   Math.sin = (...args) => { trigonometry++; return sin(...args); };
   Math.cos = (...args) => { trigonometry++; return cos(...args); };
+  // A distance is evaluated with either Math.hypot or Math.sqrt.
   Math.hypot = (...args) => { distances++; return hypot(...args); };
-  Math.sqrt = (...args) => { squareRoots++; return sqrt(...args); };
+  Math.sqrt = (...args) => { squareRoots++; distances++; return sqrt(...args); };
   try {
     meshes[0].userData.instanceVisible(0, camera);
     const first = { trigonometry, distances, squareRoots };

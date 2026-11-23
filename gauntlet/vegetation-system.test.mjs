@@ -14,7 +14,7 @@ registerHooks({ load(url, context, next) {
 const { VegetationSystem } = await import('../src/vegetation/system.js');
 const { Scheduler } = await import('../src/streaming/scheduler.js');
 const { POPULATION, generatePopulation } = await import('../src/vegetation/population.js');
-const { GrassField } = await import('../src/vegetation/grassField.js');
+const { GrassField, GRASS_REVEAL } = await import('../src/vegetation/grassField.js');
 const { GRASS_COVERAGE } = await import('../src/vegetation/grassCoverage.js');
 
 class ControlledPool {
@@ -44,7 +44,7 @@ class ControlledPool {
 
 function field(name) {
   return {
-    builds: [], disposed: [], updates: [],
+    builds: [], disposed: [], updates: [], reveals: [], clock: null,
     build(records, kind) {
       this.builds.push({ records, kind });
       if (!records.length) return [];
@@ -54,6 +54,8 @@ function field(name) {
       return [mesh];
     },
     update(...args) { this.updates.push(args); },
+    reveal(mesh, clock) { this.reveals.push({ mesh, clock }); },
+    setRevealClock(clock) { this.clock = clock; },
     disposeMesh(mesh) { mesh.removeFromParent(); this.disposed.push(mesh); },
     dispose() { this.wasDisposed = true; },
   };
@@ -80,6 +82,7 @@ function fixture(t) {
     tiles: new Map(), cache: new Map(), cpuReady: new Map(), _streamJobs: [], _streamWant: new Set(),
     _signature: '', _coverageRevision: -1, _clock: now, time: 0,
     _publishFrame: -1, _published: 0, required: 0, fallbacks: 0,
+    _revealClock: 0, _revealEnd: 0, _fadeReveals: false,
     assetReady: true, assetError: null, seasonName: 'summer',
   });
   t.after(() => system.dispose());
@@ -614,3 +617,147 @@ for (const action of ['move', 'reset', 'drop', 'dispose']) {
     assert.equal(system.group.children.length, 0);
   });
 }
+
+function withApp(t, app) {
+  const previous = globalThis.window;
+  globalThis.window = { __app: app };
+  t.after(() => {
+    if (previous === undefined) delete globalThis.window;
+    else globalThis.window = previous;
+  });
+  return app;
+}
+
+test('ground cover is generated in the order the camera reaches it, ahead of every tree job', t => {
+  const fx = fixture(t), { system } = fx;
+  const camera = new THREE.PerspectiveCamera();
+  camera.position.set(16, 2, 16);
+  camera.lookAt(116, 2, 16);
+  withApp(t, { cameras: { camera } });
+  fx.update(16, 16);
+  const jobs = system._streamJobs;
+  const cover = jobs.filter(job => job.kind !== 'tree'), trees = jobs.filter(job => job.kind === 'tree');
+  assert.ok(cover.some(job => job.kind === 'shrub') && trees.length > 0);
+  assert.ok(Math.max(...cover.map(job => job.priority)) < Math.min(0, ...trees.map(job => job.priority)),
+    'grass, pasture and shrubs stay urgent for the population workers');
+  const find = (kind, i, j) => jobs.find(job => job.kind === kind && job.i === i && job.j === j);
+  const near = find('grass', 1, 0), ahead = find('grass', 2, 0), behind = find('grass', -2, 0);
+  assert.ok(near.priority < ahead.priority, 'nearer sward ahead comes first');
+  assert.ok(ahead.priority < behind.priority, 'at the same distance, tiles behind the eye wait');
+  assert.equal(system.pool.jobs.get(ahead.key).priority, ahead.priority);
+  // Shrubs show to a longer range than grass, so a shrub tile ranks with grass
+  // at the same eye distance later: 112 m of 220 m precedes 112 m of 160 m.
+  const shrub = find('shrub', 2, 0), grass = find('grass', 4, 0);
+  assert.ok(shrub.priority < grass.priority && shrub.priority > near.priority);
+});
+
+function straightRoute() {
+  return {
+    at(s, out = {}) { return Object.assign(out, { s, x: s, y: 40, z: 0, tx: 1, tz: 0 }); },
+    nearest(x, z, max) { return Math.abs(z) <= max ? { dist: Math.abs(z), s: x } : null; },
+  };
+}
+
+function leadFixture(t, { speed, planned = () => true }) {
+  const fx = fixture(t), { system, terrain } = fx;
+  system.world.route = straightRoute();
+  terrain.plansBounds = (...bounds) => planned(...bounds);
+  const camera = new THREE.PerspectiveCamera();
+  camera.position.set(-13, 6, 0);
+  camera.lookAt(20, 2, 0);
+  withApp(t, { cameras: { camera }, vehicle: { s: 0, speed } });
+  fx.update(-6, 0);
+  return fx;
+}
+
+test('ground cover the eye reaches within the lead is planned beyond the rings and ranked by arrival', t => {
+  const fast = leadFixture(t, { speed: 30 }).system;
+  const grass = (system, i) => system._streamJobs.find(job => job.kind === 'grass' && job.i === i && job.j === 0);
+  // The grass ring ends 7 tiles (224 m) from the focus; at 30 m/s the eye
+  // reaches grass within its 160 m range up to 150 m further along the route.
+  const beyond = grass(fast, 9);
+  assert.ok(beyond, 'grass 290 m ahead is planned at 108 km/h');
+  assert.equal(grass(fast, 12), undefined, 'grass the eye cannot reach within the lead is not');
+  assert.ok(grass(fast, 4).priority < grass(fast, 7).priority && grass(fast, 7).priority < beyond.priority,
+    'tiles are ranked by when the eye reaches them');
+  assert.ok(fast._streamJobs.some(job => job.kind === 'shrub' && job.i === 5 && job.j === 0),
+    'shrubs 320 m ahead, beyond their 256 m ring, are planned: they show from 220 m');
+});
+
+test('lead planning scales with speed and stays on ground the terrain plans', t => {
+  const grassAt = (system, i) => system._streamJobs.some(job => job.kind === 'grass' && job.i === i && job.j === 0);
+  const slow = leadFixture(t, { speed: 2 }).system;
+  assert.equal(grassAt(slow, 9), false, 'a crawling car needs no long lead');
+  const fast = leadFixture(t, { speed: 30, planned: () => false }).system;
+  assert.equal(grassAt(fast, 9), false, 'no lead tile is planned where its supporting ground is not');
+  assert.equal(grassAt(fast, 6), true, 'ring tiles are unaffected');
+});
+
+test('refreshVisibility shows tiles whose ground arrived later without replanning or polling', t => {
+  const fx = fixture(t), { system, terrain } = fx;
+  fx.update();
+  const job = originJob(system);
+  system.pool.complete(job.key, records(job));
+  fx.update(); fx.update();
+  terrain.setReady(false);
+  drainPublications(system);
+  const entry = system.tiles.get(job.key);
+  assert.ok(entry.meshes.every(mesh => !mesh.visible));
+  const requests = system.pool.requests.length, signature = system._signature;
+  terrain.setReady(true);
+  system.refreshVisibility();
+  assert.ok(entry.meshes.every(mesh => mesh.visible));
+  assert.equal(system.pool.requests.length, requests);
+  assert.equal(system._signature, signature);
+  const calls = terrain.calls.length;
+  system.refreshVisibility();
+  assert.equal(terrain.calls.length, calls, 'an unchanged coverage revision costs nothing');
+});
+
+test('tiles revealed while driving fill in, while holds reveal instantly and complete every fade', t => {
+  const fx = fixture(t), { system, terrain } = fx;
+  const app = withApp(t, { presented: true, paused: false, forceDrain: false, loading: false, _backgrounded: false });
+  fx.update();
+  const [first, second] = system._streamJobs.filter(job => job.kind === 'grass');
+  system.pool.complete(first.key, records(first));
+  fx.update(); fx.update(); drainPublications(system);
+  const reveal = system.grass.reveals.at(-1);
+  assert.ok(system.tiles.get(first.key).meshes.includes(reveal.mesh));
+  assert.ok(system.flowers.reveals.length > 0, 'flowers grow in with their grass');
+  assert.ok(reveal.clock > 0 && reveal.clock === system.grass.clock, 'the fill-in starts at the current clock');
+  fx.update();
+  assert.ok(system.grass.clock > reveal.clock && system.grass.clock < reveal.clock + GRASS_REVEAL.seconds,
+    'the fade advances with presented time');
+  app.paused = true;
+  fx.update();
+  assert.ok(system.grass.clock >= reveal.clock + GRASS_REVEAL.seconds, 'a hold completes every fade');
+  const count = system.grass.reveals.length;
+  system.pool.complete(second.key, records(second));
+  fx.update(); fx.update(); drainPublications(system);
+  assert.equal(system.tiles.get(second.key).groundReady, true);
+  assert.equal(system.grass.reveals.length, count, 'tiles revealed during a hold appear complete');
+  app.paused = false;
+  terrain.setReady(false); fx.update();
+  terrain.setReady(true); fx.update();
+  assert.ok(system.grass.reveals.length > count, 'returning support while driving fades the tile in again');
+});
+
+test('late shrub tiles dissolve in while driving like the sward; trees and held frames do not', t => {
+  const fx = fixture(t), { system } = fx;
+  const app = withApp(t, { presented: true, paused: false, forceDrain: false, loading: false, _backgrounded: false });
+  fx.update();
+  const shrub = originJob(system, 'shrub'), tree = originJob(system, 'tree');
+  for (const job of [shrub, tree]) system.pool.complete(job.key, records(job));
+  fx.update(); fx.update(); drainPublications(system);
+  const revealed = new Set(system.forest.reveals.map(reveal => reveal.mesh));
+  assert.ok(system.tiles.get(shrub.key).meshes.every(mesh => revealed.has(mesh)), 'shrubs fill in');
+  assert.ok(system.tiles.get(tree.key).meshes.every(mesh => !revealed.has(mesh)), 'trees keep their behaviour');
+  assert.equal(system.forest.clock, system.grass.clock, 'one reveal clock drives every layer');
+  app.paused = true;
+  const second = system._streamJobs.find(job => job.kind === 'shrub' && job.key !== shrub.key);
+  system.pool.complete(second.key, records(second));
+  const count = system.forest.reveals.length;
+  fx.update(); fx.update(); drainPublications(system);
+  assert.equal(system.tiles.get(second.key).groundReady, true);
+  assert.equal(system.forest.reveals.length, count, 'a hold shows shrubs complete');
+});

@@ -413,6 +413,24 @@ test('negative-coordinate stationary requests have complete coarse coverage with
   assertRootCoverage(terrain, terrain.roots);
 });
 
+test('planned bounds follow the required rings around the focus and the route-ahead point', async (t) => {
+  const { terrain } = await fixture(t);
+  const C = P.chunkSize, reach = C * P.ringRadius;
+  terrain.update(10, 10, { x: 2000, z: 10 });
+  assert.equal(terrain.plansBounds(10 - reach, -20, 10 + reach - 1, 40, 0), true, 'the focus ring is planned at level 0');
+  assert.equal(terrain.plansBounds(2000 + reach - 20, -20, 2000 + reach, 40, 0), true, 'so is the ring ahead');
+  assert.equal(terrain.plansBounds(1000, -20, 1040, 40, 0), false, 'ground between the rings is not');
+  assert.equal(terrain.plansBounds(1000, -20, 1040, 40, 2), true, 'coarser levels reach further');
+  assert.equal(terrain.plansBounds(3 * C - 8, 0, 3 * C + 8, 16, 0), false, 'a box straddling the ring edge is not');
+  assert.equal(terrain.plansBounds(0, 0, 0, 16, 0), false, 'empty bounds are never planned');
+  for (let x = -3 * C; x < 4 * C; x += 32) {
+    if (!terrain.plansBounds(x, -16, x + 32, 16, 0)) continue;
+    for (const i of new Set([Math.floor(x / C), Math.floor((x + 31) / C)])) {
+      assert.ok(terrain.requests.has(makeTile(terrain.version, 0, i, -1, C).key) && terrain.requests.has(makeTile(terrain.version, 0, i, 0, C).key));
+    }
+  }
+});
+
 test('finite-level bounds reject coarse or morphing support until the exact child settles', async (t) => {
   const { terrain } = await fixture(t);
   let now = 10000;

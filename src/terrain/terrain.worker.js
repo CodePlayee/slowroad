@@ -3,7 +3,15 @@ import { buildTerrainTileData, hydrateWorld } from './mesh-data.js';
 let world = null, epoch = 0;
 const cancelled = new Set();
 const active = new Set();
-const pause = () => new Promise((resolve) => setTimeout(resolve, 0));
+// Workers clamp nested setTimeout(0) to >= 4 ms, which idled a worker for about
+// a third of every 8 ms slice. A channel message yields one task turn without a
+// clamp. A channel per pause (one every 8 ms) pairs concurrent builds with their
+// own turns and never leaves an open port behind.
+const pause = () => new Promise((resolve) => {
+  const channel = new MessageChannel();
+  channel.port1.onmessage = () => { channel.port1.close(); resolve(); };
+  channel.port2.postMessage(0);
+});
 
 self.onmessage = async ({ data: message }) => {
   if (message.type === 'init') {

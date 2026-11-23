@@ -280,10 +280,9 @@ class App {
       this.requestedS = this.world.route.kmToS(this._validKm(opts.km));
       this.vehicle.snapTo(this.requestedS);
     }
-    if (opts.cam !== undefined) {
-      if (opts.cam !== this.cameras.mode) this.beginTransition();
-      this.cameras.setMode(opts.cam);
-    }
+    // A camera switch leaves the car where it is: the world keeps streaming
+    // around the new focus as in ordinary driving, so the frame is not held.
+    if (opts.cam !== undefined) this.cameras.setMode(opts.cam);
     if (opts.dist !== undefined) {
       const d = Number(opts.dist);
       this.cameras.distScale = Number.isFinite(d) ? Math.min(4, Math.max(0.1, d)) : 1;
@@ -373,7 +372,9 @@ class App {
     this.streamAll();
     this.scheduler.run(this.forceDrain ? 90 : this.scheduler.budgetMs);
     this.terrain.refreshCoverage();
-    this.veg.update(this.terrain.focusX, this.terrain.focusZ);
+    // Vegetation already planned and polled in streamAll(); only re-test ground
+    // support for terrain this frame's scheduler run just revealed.
+    this.veg.refreshVisibility();
     this.water.update(dt);
     this.atmo.update(this.cameras.camera, this.vehicle.pos, dt);
     if (this.loading && this.terrain.coverageReady && this.road.resident >= this.road.required &&

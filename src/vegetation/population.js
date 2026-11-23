@@ -8,6 +8,7 @@ import { createRoadsideSurfaceSampler } from '../terrain/surfaceSampler.js';
 import { PASTURE, generatePasture } from './pasture.js';
 import { generateVerge } from './verge.js';
 import { FURNITURE, wallBlocks } from '../road/roadside.js';
+import { ROAD } from '../road/params.js';
 
 export const POPULATION = {
   grass: { tile: 32, radius: 7, candidates: 9216, candidatesPerLayer: 2304, columns: 48,
@@ -103,6 +104,11 @@ export function* generatePopulation(world, kind, i, j) {
     && (world.route.nearest((i + 0.5) * config.tile, (j + 0.5) * config.tile, probeDistance)?.dist ?? Infinity) <= probeDistance;
   const sample = {}, gradient = { dx: 0, dz: 0 }, records = [];
   const surfaceSampler = kind === 'grass' ? createRoadsideSurfaceSampler(world) : null, surface = {};
+  // world.sample reports roadDist from this same bounded route query, and its
+  // reach (carveOuter) exceeds roadEnd. Asking it first rejects exactly the grass
+  // candidates outside the road band before the costly heightfield evaluation;
+  // about half of a planned tile's lattice lies outside that band.
+  const roadBand = kind === 'grass' && world.route?.nearest && ROAD.carveOuter > GRASS_COVERAGE.roadEnd;
   for (let index = 0; index < config.candidates; index++) {
     if (index > 0 && (index & 15) === 0) yield;
     // Extra independently seeded layers keep the original plants in place.
@@ -113,6 +119,10 @@ export function* generatePopulation(world, kind, i, j) {
     const x = (cellX + margin + rng() * (1 - margin * 2)) * dx;
     const z = (cellZ + margin + rng() * (1 - margin * 2)) * dz;
     const accept = rng();
+    if (roadBand) {
+      const road = world.route.nearest(x, z, ROAD.carveOuter);
+      if (!road || road.dist >= GRASS_COVERAGE.roadEnd || road.dist < config.roadClear) continue;
+    }
     world.sample(x, z, sample);
     if (kind === 'grass' && sample.roadDist >= GRASS_COVERAGE.roadEnd) continue;
     if (!Number.isFinite(sample.y) || !Number.isFinite(sample.waterY) ||

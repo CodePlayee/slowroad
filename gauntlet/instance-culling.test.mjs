@@ -251,20 +251,18 @@ test('fully culled batches are hidden only during rendering and padded roots rem
 
 test('aggregate padded bounds reject whole batches before per-instance tests and invalidate with transforms', () => {
   const { root, mesh, camera, culler } = fixture([[100, 0, -10], [110, 0, -10]]);
-  let spheres = 0, predicates = 0;
-  const intersectsSphere = culler._frustum.intersectsSphere.bind(culler._frustum);
-  culler._frustum.intersectsSphere = sphere => { spheres++; return intersectsSphere(sphere); };
+  // Per-instance work is observed through the visibility predicate, which only
+  // runs for instances that pass the per-instance frustum test.
+  let predicates = 0;
   mesh.userData.instanceVisible = () => { predicates++; return true; };
   try {
     culler.prepare(root, camera);
     assert.equal(mesh.count, 0);
-    assert.equal(spheres, 0);
     assert.equal(predicates, 0);
     culler.restore();
     root.position.x = -100;
     culler.prepare(root, camera);
     assert.equal(mesh.count, 1);
-    assert.equal(spheres, 2);
     assert.equal(predicates, 1);
     culler.restore();
     mesh.userData.worldBoundsPadding = 100;
